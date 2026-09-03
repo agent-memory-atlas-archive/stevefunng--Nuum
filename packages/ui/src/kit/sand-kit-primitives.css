@@ -1,0 +1,188 @@
+
+.sand-kit-button,
+.sand-kit-icon-button,
+.sand-inserted-chip {
+  box-sizing: border-box;
+  font-family: inherit;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sand-kit-button {
+  align-items: center;
+  border: 0;
+  border-radius: var(--nuum-radius-base);
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--nuum-spacing-1);
+  justify-content: center;
+  min-height: var(--nuum-height-base);
+  padding: 0 var(--nuum-spacing-2);
+  color: var(--nuum-text-primary);
+  font-size: var(--nuum-font-size-base);
+  line-height: var(--nuum-line-height-base);
+  transition: background-color var(--nuum-duration-fast), border-color var(--nuum-duration-fast), color var(--nuum-duration-fast), opacity var(--nuum-duration-fast);
+}
+
+.sand-1iorvi4 {
+  min-height: var(--nuum-height-sm);
+  padding-inline: var(--nuum-spacing-2);
+  font-size: var(--nuum-font-size-sm);
+  line-height: var(--nuum-line-height-sm);
+}
+
+.sand-1yrsyyn {
+  min-height: var(--nuum-height-base);
+}
+
+.sand-163pfp {
+  border-radius: var(--nuum-radius-full);
+}
+
+.sand-1wclgxm {
+  background: var(--nuum-accent);
+  color: var(--nuum-base);
+}
+
+.sand-1tiofj7 {
+  background: var(--nuum-button-secondary-background);
+  color: var(--nuum-button-secondary-foreground);
+}
+
+.sand-18he5m,
+.sand-6y9aml {
+  background: var(--nuum-danger);
+  color: var(--nuum-base);
+}
+
+.sand-kit-button:hover:not(:disabled),
+.sand-kit-button:focus-visible:not(:disabled) {
+  background: var(--nuum-button-secondary-hover-background);
+  color: var(--nuum-text-primary);
+}
+
+.sand-1wclgxm:hover:not(:disabled),
+.sand-1wclgxm:focus-visible:not(:disabled),
+.sand-2uzfp6:hover:not(:disabled),
+.sand-2uzfp6:focus-visible:not(:disabled),
+.sand-18he5m:hover:not(:disabled),
+.sand-18he5m:focus-visible:not(:disabled),
+.sand-6y9aml:hover:not(:disabled),
+.sand-6y9aml:focus-visible:not(:disabled) {
+  filter: brightness(1.08);
+}
+
+.sand-kit-button:focus-visible,
+.sand-kit-icon-button:focus-visible {
+  outline: 1px solid var(--nuum-stroke-focused);
+  outline-offset: 1px;
+}
+
+.sand-kit-button:active:not(:disabled),
+.sand-kit-icon-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.sand-ri19xs {
+  background: var(--nuum-bg-selected);
+  color: var(--nuum-text-primary);
+}
+
+.sand-kit-button:disabled,
+.sand-kit-icon-button:disabled {
+  cursor: default;
+  opacity: .56;
+}
+
+.sand-kit-icon-button {
+  align-items: center;
+  background: transparent;
+  border: 0;
+  border-radius: var(--nuum-radius-base);
+  color: var(--nuum-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  height: var(--nuum-height-base);
+  justify-content: center;
+  padding: 0;
+  width: var(--nuum-height-base);
+  transition: background-color var(--nuum-duration-fast), color var(--nuum-duration-fast), opacity var(--nuum-duration-fast);
+}
+
+.sand-vy4d1p {
+  height: var(--nuum-height-sm);
+  width: var(--nuum-height-sm);
+}
+
+.sand-exx8yu {
+  height: var(--nuum-height-lg);
+  width: var(--nuum-height-lg);
+}
+
+.sand-149ho13 {
+  border-radius: var(--nuum-radius-full);
+}
+
+.sand-jbqb8w {
+  background: var(--nuum-bg-tertiary);
+  color: var(--nuum-text-primary);
+}
+
+.sand-kit-icon-button:hover:not(:disabled),
+.sand-kit-icon-button:focus-visible:not(:disabled) {
+  background: var(--nuum-bg-secondary);
+  color: var(--nuum-text-primary);
+}
+
+.sand-inserted-chip {
+  align-items: center;
+  background: var(--nuum-bg-tertiary);
+  border: 1px solid var(--nuum-stroke-tertiary);
+  border-radius: var(--nuum-radius-full);
+  color: var(--nuum-text-secondary);
+  display: inline-flex;
+  font-size: var(--nuum-font-size-sm);
+  gap: var(--nuum-spacing-1);
+  line-height: var(--nuum-line-height-sm);
+  min-height: var(--nuum-height-sm);
+  padding-inline: var(--nuum-spacing-2);
+  white-space: nowrap;
+}
+
+.sand-1yrsyyn.sand-inserted-chip {
+  min-height: var(--nuum-height-base);
+  font-size: var(--nuum-font-size-base);
+  line-height: var(--nuum-line-height-base);
+}
+
+.sand-luhinc {
+  background: var(--nuum-bg-accent-secondary);
+  border-color: var(--nuum-stroke-accent);
+  color: var(--nuum-text-primary);
+}
+
+.sand-1r8pydn {
+  background: transparent;
+  border-color: transparent;
+}
+
+.sand-2uzfp6.sand-inserted-chip {
+  background: var(--nuum-bg-green-secondary);
+  border-color: var(--nuum-stroke-green-secondary);
+}
+
+.sand-6y9aml.sand-inserted-chip {
+  background: var(--nuum-bg-yellow-secondary);
+  border-color: var(--nuum-stroke-yellow-secondary);
+}
+
+.sand-18he5m.sand-inserted-chip {
+  background: var(--nuum-bg-red-secondary);
+  border-color: var(--nuum-stroke-red-secondary);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sand-kit-button,
+  .sand-kit-icon-button {
+    transition-duration: 0ms;
+  }
+}

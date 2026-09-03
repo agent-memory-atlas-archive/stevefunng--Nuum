@@ -1,0 +1,21 @@
+node_modules
+dist
+out
+.turbo
+.pnpm-store
+*.log
+.DS_Store
+.env
+.env.*
+coverage
+apps/desktop/release
+.artifacts
+*.tsbuildinfo
+
+# Local research, handoff, and architecture working notes.
+# These files may contain implementation history that is not part of the public project.
+/design-qa.md
+/docs/architecture-agent-first.md
+/docs/architecture-proactive-workbar.md
+/docs/handoff-agent-first.md
+/docs/handoff-bot-infra.md

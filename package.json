@@ -1,0 +1,31 @@
+{
+  "name": "nuum",
+  "private": true,
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/stevefunng/Nuum.git"
+  },
+  "type": "module",
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "turbo run build --filter=@nuum/host --filter=@nuum/kernel && pnpm --filter @nuum/desktop dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "lint:deps": "depcruise apps packages --config dependency-cruiser.cjs",
+    "test": "turbo run test && turbo run build --filter=@nuum/host --filter=@nuum/kernel && node scripts/smoke-host.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "dependency-cruiser": "^16.10.4",
+    "tsx": "^4.20.5",
+    "turbo": "^2.5.6",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["electron", "esbuild"]
+  }
+}

@@ -1,0 +1,180 @@
+.sand-settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: var(--sand-bg-scrim);
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.sand-settings-dialog {
+  width: min(860px, calc(100vw - 32px));
+  height: min(620px, calc(100vh - 32px));
+  overflow: hidden;
+  color: var(--nuum-text-primary);
+  background: var(--nuum-bg-elevated);
+  border: 1px solid var(--nuum-stroke-secondary);
+  border-radius: 14px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.5);
+}
+
+.sand-settings-layout {
+  display: grid;
+  grid-template-columns: 190px 1fr;
+  height: 100%;
+}
+
+.sand-settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 54px 10px 12px;
+  background: color-mix(in srgb, #000 14%, transparent);
+  border-right: 1px solid var(--nuum-stroke-tertiary);
+}
+
+.sand-settings-nav__item {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  padding: 8px 10px;
+  color: var(--nuum-text-secondary);
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.sand-settings-nav__item[data-active] {
+  color: var(--nuum-text-primary);
+  background: var(--sand-fill-ghost-selected);
+}
+
+.sand-settings-nav__item:hover:not([data-active]) {
+  background: var(--sand-fill-ghost-hover);
+}
+
+.sand-settings-panel {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.sand-settings-panel > h2 {
+  height: 54px;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 17px 24px;
+  border-bottom: 1px solid var(--nuum-stroke-tertiary);
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.sand-settings-panel__close {
+  position: absolute;
+  top: 11px;
+  right: 14px;
+  z-index: 1;
+}
+
+.sand-settings-panel__body {
+  height: calc(100% - 54px);
+  box-sizing: border-box;
+  overflow: auto;
+  padding: 24px;
+}
+
+.sand-settings-stack {
+  display: grid;
+  gap: 12px;
+}
+
+.sand-settings-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 13px;
+  background: var(--nuum-bg-secondary);
+  border: 1px solid var(--nuum-stroke-tertiary);
+  border-radius: 9px;
+}
+
+.sand-settings-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 4px;
+}
+
+.sand-settings-copy > span {
+  color: var(--nuum-text-primary);
+}
+
+.sand-settings-copy small,
+.sand-settings-field__hint {
+  color: var(--nuum-text-secondary);
+  font-size: 11px;
+}
+
+.sand-settings-control {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.sand-settings-control input,
+.sand-settings-control select {
+  min-width: 168px;
+  min-height: 28px;
+  padding: 6px 9px;
+  color: inherit;
+  background: var(--nuum-button-secondary-background);
+  border: 1px solid var(--nuum-stroke-tertiary);
+  border-radius: 6px;
+}
+
+.sand-settings-control input[type="password"],
+.sand-settings-control input[readonly] {
+  min-width: 220px;
+}
+
+.sand-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+}
+
+.sand-switch {
+  position: relative;
+  width: 40px;
+  height: 24px;
+  padding: 0;
+  background: var(--nuum-bg-tertiary);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.sand-switch[aria-checked="true"] { background: var(--sand-fill-accent); }
+.sand-switch__knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 20px;
+  height: 20px;
+  background: #fff;
+  border-radius: 50%;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: transform .16s ease;
+}
+.sand-switch[aria-checked="true"] .sand-switch__knob { transform: translateX(16px); }
+
+@media (max-width: 620px) {
+  .sand-settings-layout { grid-template-columns: 132px 1fr; }
+  .sand-settings-nav { padding-inline: 6px; }
+  .sand-settings-panel__body { padding: 16px; }
+}
