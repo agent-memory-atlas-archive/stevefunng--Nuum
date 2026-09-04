@@ -6,11 +6,11 @@
  * 因为一个 agent 只有一条 transcript，并行跑会把上下文写乱。
  */
 
-export type RunKind = "user" | "agent";
+import { freezeRunContext, type RunContext } from "./run-context.js";
 
 export interface RunRequest {
   agentId: string;
-  kind: RunKind;
+  context: RunContext;
   /** 真正拉起 Kernel 的动作。抛错视为该 run 立即收束。 */
   start(runId: string): Promise<void>;
 }
@@ -36,7 +36,11 @@ export class AgentScheduler {
    * 排队的没有这个 promise：它什么时候起还不知道。
    */
   submit(request: RunRequest): { runId: string; state: "started" | "queued"; started?: Promise<void> } {
-    const run: ScheduledRun = { ...request, runId: this.newRunId() };
+    const run: ScheduledRun = {
+      ...request,
+      context: freezeRunContext(request.context),
+      runId: this.newRunId()
+    };
     if (this.canStart(run.agentId)) {
       return { runId: run.runId, state: "started", started: this.launch(run) };
     }
@@ -67,6 +71,11 @@ export class AgentScheduler {
 
   agentIdFor(runId: string): string | undefined {
     return this.active.get(runId)?.agentId;
+  }
+
+  /** 排队和活跃 run 都能取到；收束/取消后立即消失。 */
+  contextFor(runId: string): RunContext | undefined {
+    return this.active.get(runId)?.context ?? this.pending.find((run) => run.runId === runId)?.context;
   }
 
   /** 一个 agent 同时只有一个活跃 run，所以审批 / 取消能从 agentId 反查回去。 */

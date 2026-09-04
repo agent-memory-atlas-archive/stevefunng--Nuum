@@ -12,12 +12,17 @@ import {
   type ThemePreference,
   type ToolPermission,
   type ToolResolution,
-  type TranscriptEvent
+  type TranscriptEvent,
+  type WorkCatalogAddParams,
+  type WorkProfile,
+  type WorkSnapshot
 } from "@nuum/protocol";
 import {
   ConversationSidebar,
   ConversationWorkspace,
   SettingsOverlay,
+  WorkBoard,
+  WorkCreation,
   createRuntimeThemeInstaller,
   readSidebarLayout,
   writeSidebarLayout,
@@ -71,7 +76,13 @@ function applyPanePatch(
 
 export function App() {
   const [agents, setAgents] = useState<AgentView[]>([]);
+  const [works, setWorks] = useState<WorkProfile[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [activeWorkId, setActiveWorkId] = useState<string | null>(null);
+  const [workSnapshot, setWorkSnapshot] = useState<WorkSnapshot | null>(null);
+  const [creatingWork, setCreatingWork] = useState(false);
+  const [workNotice, setWorkNotice] = useState<string | null>(null);
+  const [floatingAgentId, setFloatingAgentId] = useState<string | null>(null);
   const [panes, setPanes] = useState<Record<string, AgentPane>>({});
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [creationError, setCreationError] = useState<string | null>(null);
@@ -86,6 +97,8 @@ export function App() {
     typeof localStorage === "undefined" ? { expandedWidth: 236, isCollapsed: false } : readSidebarLayout()
   );
   const themeHandle = useRef<ReturnType<typeof createRuntimeThemeInstaller> | null>(null);
+  const activeWorkIdRef = useRef<string | null>(null);
+  activeWorkIdRef.current = activeWorkId;
 
   const active = useMemo(
     () => agents.find((agent) => agent.profile.id === activeId) ?? null,
@@ -94,6 +107,12 @@ export function App() {
   const pane = (activeId ? panes[activeId] : undefined) ?? emptyPane;
   const draft = activeId ? pane.draft : "";
   const blocks = projectAgent(pane.events, pane.live).blocks;
+  const floatingAgent = useMemo(
+    () => agents.find((agent) => agent.profile.id === floatingAgentId) ?? null,
+    [agents, floatingAgentId]
+  );
+  const floatingPane = (floatingAgentId ? panes[floatingAgentId] : undefined) ?? emptyPane;
+  const floatingBlocks = projectAgent(floatingPane.events, floatingPane.live).blocks;
 
   function patchPane(id: string, patch: Partial<AgentPane> | ((current: AgentPane) => Partial<AgentPane>)): void {
     setPanes((current) => applyPanePatch(current, id, patch));
@@ -169,15 +188,27 @@ export function App() {
           ...(payload.status === "cancelled" ? { notice: "Stopped." } : {})
         }));
       }
+      if (method === HostEvents.workUpdated && payload.work) {
+        setWorks((current) => upsertWork(current, payload.work as WorkProfile));
+      }
+      if (
+        (method === HostEvents.workEventAppended || method === HostEvents.workCatalogUpdated) &&
+        typeof payload.workId === "string" &&
+        payload.workId === activeWorkIdRef.current
+      ) {
+        void loadWork(payload.workId);
+      }
     });
   }, []);
 
   async function refresh(): Promise<void> {
-    const [list, publicSettings] = await Promise.all([
+    const [list, workList, publicSettings] = await Promise.all([
       window.nuum.host.request(HostMethods.agentList) as Promise<AgentView[]>,
+      window.nuum.host.request(HostMethods.workList) as Promise<WorkProfile[]>,
       window.nuum.host.request(HostMethods.settingsGet) as Promise<PublicSettings>
     ]);
     setAgents(list);
+    setWorks(workList);
     setSettings(publicSettings);
     setThemePref(publicSettings.theme ?? "dark");
     const secrets = await window.nuum.desktop.getSecrets();
@@ -195,8 +226,16 @@ export function App() {
 
   async function openAgent(id: string): Promise<void> {
     setCreatingAgent(false);
+    setCreatingWork(false);
     setCreationError(null);
+    setActiveWorkId(null);
+    setWorkSnapshot(null);
+    setFloatingAgentId(null);
     setActiveId(id);
+    await loadAgent(id);
+  }
+
+  async function loadAgent(id: string): Promise<void> {
     const snapshot = await window.nuum.host.request(HostMethods.agentGet, { id }) as AgentSnapshot;
     setAgents((current) => upsert(current, snapshot.view));
     setPanes((current) => {
@@ -212,10 +251,47 @@ export function App() {
     });
   }
 
+  async function loadWork(id: string): Promise<void> {
+    const snapshot = await window.nuum.host.request(HostMethods.workGet, { id }) as WorkSnapshot;
+    setWorkSnapshot(snapshot);
+  }
+
+  async function openWork(id: string): Promise<void> {
+    setCreatingAgent(false);
+    setCreatingWork(false);
+    setActiveId(null);
+    setActiveWorkId(id);
+    setFloatingAgentId(null);
+    setWorkNotice(null);
+    await loadWork(id);
+  }
+
   function newAgent(): void {
     setActiveId(null);
+    setActiveWorkId(null);
+    setWorkSnapshot(null);
+    setCreatingWork(false);
+    setFloatingAgentId(null);
     setCreationError(null);
     setCreatingAgent(true);
+  }
+
+  function newWork(): void {
+    setCreatingAgent(false);
+    setCreatingWork(true);
+    setActiveId(null);
+    setActiveWorkId(null);
+    setWorkSnapshot(null);
+    setFloatingAgentId(null);
+  }
+
+  async function createWork(input: { name: string; description: string }): Promise<void> {
+    const created = await window.nuum.host.request(HostMethods.workCreate, {
+      ...input,
+      projectRoot: null
+    }) as WorkProfile;
+    setWorks((current) => upsertWork(current, created));
+    await openWork(created.id);
   }
 
   async function createAgent(profile: {
@@ -241,10 +317,15 @@ export function App() {
   }
 
   async function send(): Promise<void> {
-    if (!draft.trim()) return;
-    const content = draft;
     const id = activeId;
     if (!id) return;
+    await sendAgent(id);
+  }
+
+  async function sendAgent(id: string): Promise<void> {
+    const targetPane = panes[id] ?? emptyPane;
+    if (!targetPane.draft.trim()) return;
+    const content = targetPane.draft;
     try {
       patchPane(id, { draft: "", notice: null });
       await window.nuum.host.request(HostMethods.agentSend, { id, content });
@@ -256,14 +337,74 @@ export function App() {
   }
 
   async function approve(resolution: ToolResolution): Promise<void> {
-    if (!activeId || !pane.pendingTool) return;
+    if (!activeId) return;
+    await approveAgent(activeId, resolution);
+  }
+
+  async function approveAgent(id: string, resolution: ToolResolution): Promise<void> {
+    const pendingTool = (panes[id] ?? emptyPane).pendingTool;
+    if (!pendingTool) return;
     const method = resolution === "deny" ? HostMethods.agentDenyTool : HostMethods.agentApproveTool;
     await window.nuum.host.request(method, {
-      id: activeId,
-      toolCallId: pane.pendingTool.toolCallId,
+      id,
+      toolCallId: pendingTool.toolCallId,
       resolution
     });
-    patchPane(activeId, { pendingTool: null });
+    patchPane(id, { pendingTool: null });
+  }
+
+  async function refreshActiveWork(): Promise<void> {
+    if (activeWorkId) await loadWork(activeWorkId);
+  }
+
+  async function runWorkMutation(work: () => Promise<unknown>): Promise<void> {
+    setWorkNotice(null);
+    try {
+      await work();
+      const [agentList, workList] = await Promise.all([
+        window.nuum.host.request(HostMethods.agentList) as Promise<AgentView[]>,
+        window.nuum.host.request(HostMethods.workList) as Promise<WorkProfile[]>
+      ]);
+      setAgents(agentList);
+      setWorks(workList);
+      await refreshActiveWork();
+    } catch (error) {
+      setWorkNotice(error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  function moveAgentToWork(agentId: string, workId: string): void {
+    const target = agents.find((agent) => agent.profile.id === agentId);
+    if (!target) return;
+    const membership = target.settings.workMembership ?? { revision: 0, binding: null };
+    const binding = membership.binding;
+    if (binding?.workId === workId) return;
+    void runWorkMutation(() => binding
+      ? window.nuum.host.request(HostMethods.workMemberMove, {
+          fromWorkId: binding.workId,
+          toWorkId: workId,
+          agentId,
+          role: "worker",
+          expectedRevision: membership.revision
+        })
+      : window.nuum.host.request(HostMethods.workMemberAttach, {
+          workId,
+          agentId,
+          role: "worker",
+          expectedRevision: membership.revision
+        }));
+  }
+
+  function detachAgentFromWork(agentId: string): void {
+    const target = agents.find((agent) => agent.profile.id === agentId);
+    const membership = target?.settings.workMembership;
+    if (!membership?.binding) return;
+    const workId = membership.binding.workId;
+    void runWorkMutation(() => window.nuum.host.request(HostMethods.workMemberDetach, {
+      workId,
+      agentId,
+      expectedRevision: membership.revision
+    }));
   }
 
   async function saveSettings(): Promise<void> {
@@ -308,35 +449,143 @@ export function App() {
       <div className="sand-cover-drag" />
       <ConversationSidebar
         agents={agents}
+        works={works}
         activeId={activeId}
+        activeWorkId={activeWorkId}
         layout={sidebarLayout}
         onLayoutChange={(next) => {
           setSidebarLayout(next);
           if (!next.isDragging) writeSidebarLayout(next);
         }}
         onNewAgent={newAgent}
+        onNewWork={newWork}
         onOpen={(id) => void openAgent(id)}
+        onOpenWork={(id) => void openWork(id)}
+        onMoveAgentToWork={moveAgentToWork}
+        onDetachAgent={detachAgentFromWork}
         onOpenSettings={() => setSettingsOpen(true)}
       />
       <div className="sand-workspace">
-        <ConversationWorkspace
-          agent={active}
-          blocks={blocks}
-          creatingAgent={creatingAgent}
-          canCancelCreate={agents.length > 0}
-          creationError={creationError}
-          pendingTool={pane.pendingTool}
-          draft={draft}
-          notice={pane.notice}
-          onDraftChange={(value) => {
-            if (activeId) patchPane(activeId, { draft: value });
-          }}
-          onSubmit={() => void send()}
-          onCancel={() => activeId && void window.nuum.host.request(HostMethods.agentCancel, { id: activeId })}
-          onCancelCreate={cancelCreate}
-          onCreateAgent={(profile) => void createAgent(profile)}
-          onApprove={(resolution) => void approve(resolution)}
-        />
+        {creatingWork ? (
+          <WorkCreation
+            canCancel={agents.length > 0 || works.length > 0}
+            onCancel={() => works[0] ? void openWork(works[0].id) : cancelCreate()}
+            onCreate={(input) => void createWork(input)}
+          />
+        ) : activeWorkId && workSnapshot ? (
+          <WorkBoard
+            agents={agents}
+            snapshot={workSnapshot}
+            onUpdateWork={(patch) => void runWorkMutation(() => window.nuum.host.request(HostMethods.workUpdate, {
+              id: activeWorkId,
+              ...patch
+            }))}
+            onPostMessage={(body) => void runWorkMutation(() => window.nuum.host.request(HostMethods.workPostMessage, {
+              workId: activeWorkId,
+              body,
+              mentionedAgentIds: []
+            }))}
+            onCreateTask={({ title, assigneeIds }) => void runWorkMutation(() => window.nuum.host.request(HostMethods.workTaskCreate, {
+              workId: activeWorkId,
+              title,
+              description: "",
+              acceptanceCriteria: [],
+              assigneeIds,
+              dependencyIds: [],
+              priority: "normal"
+            }))}
+            onTransitionTask={(taskId, to, expectedRevision, blockerReason) => void runWorkMutation(() =>
+              window.nuum.host.request(HostMethods.workTaskTransition, {
+                workId: activeWorkId,
+                taskId,
+                to,
+                expectedRevision,
+                ...(blockerReason ? { blocker: { reason: blockerReason } } : {})
+              })
+            )}
+            onDispatchTask={(agentId, taskId, instruction) => void runWorkMutation(() =>
+              window.nuum.host.request(HostMethods.workDispatch, {
+                workId: activeWorkId,
+                agentId,
+                taskId,
+                instruction
+              })
+            )}
+            onAttachAgent={(agentId, role) => {
+              const target = agents.find((agent) => agent.profile.id === agentId);
+              void runWorkMutation(() => window.nuum.host.request(HostMethods.workMemberAttach, {
+                workId: activeWorkId,
+                agentId,
+                role,
+                expectedRevision: target?.settings.workMembership?.revision ?? 0
+              }));
+            }}
+            onDetachAgent={(agentId, expectedRevision) => void runWorkMutation(() =>
+              window.nuum.host.request(HostMethods.workMemberDetach, {
+                workId: activeWorkId,
+                agentId,
+                expectedRevision
+              })
+            )}
+            onOpenAgent={(agentId) => {
+              setFloatingAgentId(agentId);
+              void loadAgent(agentId);
+            }}
+            onAddCatalogEntry={(entry: WorkCatalogAddParams["entry"]) => void runWorkMutation(() =>
+              window.nuum.host.request(HostMethods.workCatalogAdd, {
+                workId: activeWorkId,
+                expectedRevision: workSnapshot.catalog.revision,
+                entry
+              })
+            )}
+            onRemoveCatalogEntry={(entryId) => void runWorkMutation(() =>
+              window.nuum.host.request(HostMethods.workCatalogRemove, {
+                workId: activeWorkId,
+                entryId,
+                expectedRevision: workSnapshot.catalog.revision
+              })
+            )}
+          />
+        ) : (
+          <ConversationWorkspace
+            agent={active}
+            blocks={blocks}
+            creatingAgent={creatingAgent}
+            canCancelCreate={agents.length > 0}
+            creationError={creationError}
+            pendingTool={pane.pendingTool}
+            draft={draft}
+            notice={pane.notice}
+            onDraftChange={(value) => {
+              if (activeId) patchPane(activeId, { draft: value });
+            }}
+            onSubmit={() => void send()}
+            onCancel={() => activeId && void window.nuum.host.request(HostMethods.agentCancel, { id: activeId })}
+            onCancelCreate={cancelCreate}
+            onCreateAgent={(profile) => void createAgent(profile)}
+            onApprove={(resolution) => void approve(resolution)}
+          />
+        )}
+        {workNotice ? <div className="sand-work-notice" role="alert">{workNotice}</div> : null}
+        {activeWorkId && floatingAgent && floatingAgentId ? (
+          <div aria-label={`Conversation with ${floatingAgent.profile.name}`} className="sand-work-agent-float" role="dialog">
+            <button aria-label="Close conversation" className="sand-work-agent-float__close" onClick={() => setFloatingAgentId(null)} type="button">×</button>
+            <ConversationWorkspace
+              agent={floatingAgent}
+              autoFocusInput
+              blocks={floatingBlocks}
+              pendingTool={floatingPane.pendingTool}
+              draft={floatingPane.draft}
+              notice={floatingPane.notice}
+              onDraftChange={(value) => patchPane(floatingAgentId, { draft: value })}
+              onSubmit={() => void sendAgent(floatingAgentId)}
+              onCancel={() => void window.nuum.host.request(HostMethods.agentCancel, { id: floatingAgentId })}
+              onCancelCreate={() => undefined}
+              onCreateAgent={() => undefined}
+              onApprove={(resolution) => void approveAgent(floatingAgentId, resolution)}
+            />
+          </div>
+        ) : null}
       </div>
       <SettingsOverlay
         open={settingsOpen}
@@ -528,5 +777,11 @@ function SandWorkspace({ value, onPick, onClear }: { value: string; onPick(): vo
 function upsert(list: AgentView[], agent: AgentView): AgentView[] {
   return [agent, ...list.filter((item) => item.profile.id !== agent.profile.id)].sort(
     (a, b) => b.runtime.lastActivityAt - a.runtime.lastActivityAt
+  );
+}
+
+function upsertWork(list: WorkProfile[], work: WorkProfile): WorkProfile[] {
+  return [work, ...list.filter((item) => item.id !== work.id)].sort(
+    (a, b) => b.createdAt - a.createdAt
   );
 }

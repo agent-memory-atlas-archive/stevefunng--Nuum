@@ -1,10 +1,13 @@
 import "./conversation/view.css";
 import "./conversation/settings.css";
 import "./shell.css";
+import "./workbar/work-board.css";
 
 export { ConversationSidebar, agentAccent } from "./conversation/sidebar";
 export { AgentAvatar, AGENT_AVATAR_COLORS, AGENT_AVATAR_SHAPES } from "./conversation/agent-avatar";
 export { ConversationWorkspace, SettingsOverlay } from "./conversation/workspace";
+export { WorkBoard, WorkCreation } from "./workbar/work-board";
+export type { WorkBoardProps } from "./workbar/work-board";
 export type { ConversationSidebarProps } from "./conversation/sidebar";
 export type { ConversationWorkspaceProps, PendingTool } from "./conversation/workspace";
 export {

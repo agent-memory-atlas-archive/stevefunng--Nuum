@@ -2,8 +2,8 @@
 
 > 本文件是遵循 [agents.md](https://agents.md/) 规范的 AI agent 项目入口。
 > 先读本文件再改代码。改业务逻辑时先读 [docs/coding](./docs/coding/README.md)。
-> 当前施工：agent-first 主链路及会话真源 / UI 投影收口已经完成。
-> Proactive Mode 与 Work Bar 仍处于设计阶段，不得写成当前能力。
+> 当前施工：agent-first 主链路、会话真源 / UI 投影与 Work Bar V1 已实现。
+> Proactive Mode 仍在独立施工线中，不得写成当前能力。
 > 更新时间：2026-09-04
 
 ## 项目定位
@@ -87,3 +87,5 @@ pnpm run lint:deps
 ## 当前能力
 
 三进程边界；主键是 agent（一条转录、一份记忆、可互发）；分段 system prompt；SendMessage 是助手唯一对用户出口；支持 Compact 检查点、每 agent workspace、按动作权限、新本地文件/搜索工具，以及每 agent 长驻 `shell` 会话。JSONL 转录保持唯一真源，UI 按因果关系投影出用户消息、agent 互发消息和可折叠工具活动，不维护第二条时间线。
+
+Work Bar V1 使用独立追加式 Work timeline 保存共享聊天、任务、派工与 handoff；任务卡和聊天室都是投影。成员真源是 Agent settings 中带 revision 的单槽 `workMembership`，可动态挂入、移出和跨 Work 移动。Work run 冻结成员范围与 capability catalog，只继承 Work 显式配置的 Skill、CLI、只读知识目录和本地工具；私人 Agent transcript 仍独立记录该 Agent 实际收到的 Work 唤醒与执行过程。

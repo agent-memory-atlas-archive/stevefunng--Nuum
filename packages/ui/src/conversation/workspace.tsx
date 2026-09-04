@@ -16,6 +16,7 @@ export interface PendingTool {
 export interface ConversationWorkspaceProps {
   agent: AgentView | null;
   blocks: readonly ViewBlock[];
+  autoFocusInput?: boolean;
   creatingAgent?: boolean;
   canCancelCreate?: boolean;
   creationError?: string | null;
@@ -269,6 +270,7 @@ function AgentCreation({
 export function ConversationWorkspace({
   agent,
   blocks,
+  autoFocusInput = false,
   creatingAgent = false,
   canCancelCreate = false,
   creationError,
@@ -284,6 +286,7 @@ export function ConversationWorkspace({
 }: ConversationWorkspaceProps) {
   const empty = agent == null || blocks.length === 0;
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const promptRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
 
   useEffect(() => {
@@ -292,6 +295,10 @@ export function ConversationWorkspace({
     if (!transcript) return;
     transcript.scrollTo({ top: transcript.scrollHeight, behavior: "smooth" });
   }, [blocks.length, creatingAgent]);
+
+  useEffect(() => {
+    if (autoFocusInput) promptRef.current?.focus();
+  }, [agent?.profile.id, autoFocusInput]);
 
   return (
     <section className="sand-chat-stage">
@@ -370,6 +377,7 @@ export function ConversationWorkspace({
           <div className="sand-prompt-shell">
             <textarea
               className="sand-prompt-field"
+              ref={promptRef}
               onChange={(event) => onDraftChange(event.target.value)}
               onCompositionEnd={() => {
                 composingRef.current = false;

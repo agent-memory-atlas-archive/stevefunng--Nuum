@@ -14,7 +14,10 @@ export const HostErrorCode = {
   NO_WORKSPACE: 2003,
   NO_API_KEY: 2004,
   KERNEL_DOWN: 2008,
-  DATA_DIR_LOCKED: 2009
+  DATA_DIR_LOCKED: 2009,
+  WORK_NOT_FOUND: 2010,
+  WORK_CONFLICT: 2011,
+  WORK_FORBIDDEN: 2012
 } as const;
 
 export const DesktopErrorCode = {

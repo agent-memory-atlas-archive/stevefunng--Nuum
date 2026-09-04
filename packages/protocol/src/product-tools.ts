@@ -15,7 +15,12 @@ export const DelegatedToolNames = {
   updateAgent: "UpdateAgent",
   sendToAgent: "SendToAgent",
   readAgentTranscript: "ReadAgentTranscript",
-  stopAgent: "StopAgent"
+  stopAgent: "StopAgent",
+  postToWork: "PostToWork",
+  handoffTask: "HandoffTask",
+  readWorkTimeline: "ReadWorkTimeline",
+  runWorkCli: "RunWorkCLI",
+  delegateWork: "DelegateWork"
 } as const;
 
 export const SendMessageParams = OutboundMessage;
@@ -71,6 +76,37 @@ export type ReadAgentTranscriptParams = z.infer<typeof ReadAgentTranscriptParams
 
 export const StopAgentParams = z.object({ agent_id: z.string() });
 export type StopAgentParams = z.infer<typeof StopAgentParams>;
+
+export const PostToWorkParams = z.object({ message: z.string().min(1) });
+export type PostToWorkParams = z.infer<typeof PostToWorkParams>;
+
+export const HandoffTaskParams = z.object({
+  summary: z.string().min(1),
+  status: z.enum(["review", "blocked", "done"]),
+  blocker_reason: z.string().min(1).optional(),
+  deliverables: z.array(z.object({
+    name: z.string().min(1),
+    uri: z.string().min(1),
+    mime_type: z.string().optional()
+  })).default([])
+});
+export type HandoffTaskParams = z.infer<typeof HandoffTaskParams>;
+
+export const ReadWorkTimelineParams = z.object({ limit: z.number().int().positive().max(100).default(30) });
+export type ReadWorkTimelineParams = z.infer<typeof ReadWorkTimelineParams>;
+
+export const RunWorkCliParams = z.object({
+  capability_id: z.string().min(1),
+  args: z.array(z.string()).default([])
+});
+export type RunWorkCliParams = z.infer<typeof RunWorkCliParams>;
+
+export const DelegateWorkParams = z.object({
+  agent_id: z.string().min(1),
+  instruction: z.string().min(1),
+  task_id: z.string().min(1).optional()
+});
+export type DelegateWorkParams = z.infer<typeof DelegateWorkParams>;
 
 const AGENT_ID = { type: "string", description: "The agent's id, as listed in your teammate directory." };
 
@@ -176,6 +212,74 @@ export const DELEGATED_TOOL_DEFINITIONS: ToolDefinition[] = [
     name: DelegatedToolNames.stopAgent,
     description: "Stop what another agent is currently doing. Anything queued for it is dropped too.",
     inputSchema: { type: "object", required: ["agent_id"], properties: { agent_id: AGENT_ID } },
+    mutating: false
+  },
+  {
+    name: DelegatedToolNames.postToWork,
+    description: "Post a progress update to the current Work shared room.",
+    inputSchema: {
+      type: "object",
+      required: ["message"],
+      properties: { message: { type: "string" } }
+    },
+    mutating: false
+  },
+  {
+    name: DelegatedToolNames.handoffTask,
+    description: "Hand the current Work task back for review, report it blocked, or—when you are the coordinator—mark a reviewed task done. This also posts the summary in the shared room.",
+    inputSchema: {
+      type: "object",
+      required: ["summary", "status"],
+      properties: {
+        summary: { type: "string" },
+        status: { type: "string", enum: ["review", "blocked", "done"] },
+        blocker_reason: { type: "string" },
+        deliverables: {
+          type: "array",
+          items: {
+            type: "object",
+            required: ["name", "uri"],
+            properties: { name: { type: "string" }, uri: { type: "string" }, mime_type: { type: "string" } }
+          }
+        }
+      }
+    },
+    mutating: false
+  },
+  {
+    name: DelegatedToolNames.readWorkTimeline,
+    description: "Read the latest entries from the current Work timeline.",
+    inputSchema: {
+      type: "object",
+      properties: { limit: { type: "number" } }
+    },
+    mutating: false
+  },
+  {
+    name: DelegatedToolNames.runWorkCli,
+    description: "Run a CLI capability explicitly installed in the current Work. No shell expansion is performed.",
+    inputSchema: {
+      type: "object",
+      required: ["capability_id"],
+      properties: {
+        capability_id: { type: "string" },
+        args: { type: "array", items: { type: "string" } }
+      }
+    },
+    mutating: true
+  },
+  {
+    name: DelegatedToolNames.delegateWork,
+    description: "Delegate work to another Agent in the current Work. Only a coordinator can use this.",
+    inputSchema: {
+      type: "object",
+      required: ["agent_id", "instruction"],
+      properties: {
+        agent_id: AGENT_ID,
+        instruction: { type: "string" },
+        task_id: { type: "string" }
+      }
+    },
     mutating: false
   }
 ];

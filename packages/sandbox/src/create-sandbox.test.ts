@@ -50,6 +50,19 @@ test("scratch and project paths are pre-approved for reads and writes", async ()
   }
 });
 
+test("Work knowledge roots are pre-approved for reads but reject writes", async () => {
+  const item = await fixture("always");
+  const knowledge = path.join(item.home, "knowledge");
+  await mkdir(knowledge);
+  const sandbox = createSandbox({
+    roots: { home: item.home, project: null, scratch: item.scratch, denied: [], readOnly: [knowledge] },
+    permission: "always"
+  });
+  assert.equal((await sandbox.authorize("read-file", path.join(knowledge, "guide.md"))).decision, "allow");
+  assert.equal((await sandbox.authorize("list-directory", knowledge)).decision, "allow");
+  assert.equal((await sandbox.authorize("write-file", path.join(knowledge, "guide.md"))).decision, "deny");
+});
+
 test("other agent stores are readable but never writable", async () => {
   const item = await fixture("always");
   const other = path.join(item.data, "agents", "a2", "profile.json");

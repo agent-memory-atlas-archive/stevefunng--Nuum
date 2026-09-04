@@ -10,6 +10,15 @@ import {
   ToolResolution
 } from "./domain.js";
 import { LiveAssistant, TranscriptEvent, ViewBlock } from "./transcript.js";
+import {
+  WorkCatalog,
+  WorkEvent,
+  WorkProfile,
+  WorkRole,
+  WorkTaskPriority,
+  WorkTaskState,
+  WorkTaskView
+} from "./work.js";
 
 export const HostMethods = {
   sysHello: "sys.hello",
@@ -27,6 +36,20 @@ export const HostMethods = {
   agentCancel: "agent.cancel",
   agentApproveTool: "agent.approveTool",
   agentDenyTool: "agent.denyTool",
+  workCreate: "work.create",
+  workList: "work.list",
+  workGet: "work.get",
+  workUpdate: "work.update",
+  workPostMessage: "work.postMessage",
+  workMemberAttach: "work.member.attach",
+  workMemberDetach: "work.member.detach",
+  workMemberMove: "work.member.move",
+  workTaskCreate: "work.task.create",
+  workTaskAssign: "work.task.assign",
+  workTaskTransition: "work.task.transition",
+  workDispatch: "work.dispatch",
+  workCatalogAdd: "work.catalog.add",
+  workCatalogRemove: "work.catalog.remove",
   toolsList: "tools.list"
 } as const;
 
@@ -39,8 +62,162 @@ export const HostEvents = {
   agentToolCompleted: "agent.tool.completed",
   agentError: "agent.error",
   agentEnded: "agent.ended",
+  workUpdated: "work.updated",
+  workEventAppended: "work.event.appended",
+  workCatalogUpdated: "work.catalog.updated",
   kernelDown: "host.kernel.down"
 } as const;
+
+export const WorkCreateParams = z.object({
+  name: z.string().min(1),
+  description: z.string().default(""),
+  projectRoot: z.string().nullable().default(null)
+});
+export type WorkCreateParams = z.infer<typeof WorkCreateParams>;
+
+export const WorkIdParams = z.object({ id: z.string().min(1) });
+export type WorkIdParams = z.infer<typeof WorkIdParams>;
+
+export const WorkUpdateParams = WorkIdParams.extend({
+  name: z.string().min(1).optional(),
+  description: z.string().optional(),
+  projectRoot: z.string().nullable().optional()
+});
+export type WorkUpdateParams = z.infer<typeof WorkUpdateParams>;
+
+export const WorkPostMessageParams = z.object({
+  workId: z.string().min(1),
+  body: z.string().min(1),
+  mentionedAgentIds: z.array(z.string()).default([])
+});
+export type WorkPostMessageParams = z.infer<typeof WorkPostMessageParams>;
+
+export const WorkMemberAttachParams = z.object({
+  workId: z.string().min(1),
+  agentId: z.string().min(1),
+  role: WorkRole.default("worker"),
+  expectedRevision: z.number().int().nonnegative()
+});
+export type WorkMemberAttachParams = z.infer<typeof WorkMemberAttachParams>;
+
+export const WorkMemberDetachParams = z.object({
+  workId: z.string().min(1),
+  agentId: z.string().min(1),
+  expectedRevision: z.number().int().nonnegative()
+});
+export type WorkMemberDetachParams = z.infer<typeof WorkMemberDetachParams>;
+
+export const WorkMemberMoveParams = z.object({
+  fromWorkId: z.string().min(1),
+  toWorkId: z.string().min(1),
+  agentId: z.string().min(1),
+  role: WorkRole.default("worker"),
+  expectedRevision: z.number().int().nonnegative()
+});
+export type WorkMemberMoveParams = z.infer<typeof WorkMemberMoveParams>;
+
+export const WorkTaskCreateParams = z.object({
+  workId: z.string().min(1),
+  title: z.string().min(1),
+  description: z.string().default(""),
+  acceptanceCriteria: z.array(z.string()).default([]),
+  assigneeIds: z.array(z.string()).default([]),
+  dependencyIds: z.array(z.string()).default([]),
+  priority: WorkTaskPriority.default("normal")
+});
+export type WorkTaskCreateParams = z.infer<typeof WorkTaskCreateParams>;
+
+export const WorkTaskAssignParams = z.object({
+  workId: z.string().min(1),
+  taskId: z.string().min(1),
+  assigneeIds: z.array(z.string()),
+  expectedRevision: z.number().int().positive()
+});
+export type WorkTaskAssignParams = z.infer<typeof WorkTaskAssignParams>;
+
+export const WorkTaskTransitionParams = z.object({
+  workId: z.string().min(1),
+  taskId: z.string().min(1),
+  to: WorkTaskState,
+  expectedRevision: z.number().int().positive(),
+  blocker: z.object({
+    reason: z.string().min(1),
+    ownerId: z.string().optional(),
+    resumeCondition: z.string().optional()
+  }).optional()
+});
+export type WorkTaskTransitionParams = z.infer<typeof WorkTaskTransitionParams>;
+
+export const WorkDispatchParams = z.object({
+  workId: z.string().min(1),
+  agentId: z.string().min(1),
+  taskId: z.string().min(1).optional(),
+  instruction: z.string().min(1)
+});
+export type WorkDispatchParams = z.infer<typeof WorkDispatchParams>;
+
+const WorkCatalogInput = z.discriminatedUnion("kind", [
+  z.object({
+    kind: z.literal("skill"),
+    name: z.string().min(1),
+    description: z.string().default(""),
+    manifestPath: z.string().min(1)
+  }),
+  z.object({
+    kind: z.literal("cli"),
+    name: z.string().min(1),
+    description: z.string().default(""),
+    executable: z.string().min(1),
+    allowedSubcommands: z.array(z.string()).default([])
+  }),
+  z.object({
+    kind: z.literal("knowledge"),
+    name: z.string().min(1),
+    description: z.string().default(""),
+    roots: z.array(z.string().min(1)),
+    readOnly: z.literal(true).default(true)
+  }),
+  z.object({
+    kind: z.literal("local-tool"),
+    name: z.string().min(1),
+    description: z.string().default(""),
+    toolNames: z.array(z.string().min(1))
+  })
+]);
+
+export const WorkCatalogAddParams = z.object({
+  workId: z.string().min(1),
+  expectedRevision: z.number().int().nonnegative(),
+  entry: WorkCatalogInput
+});
+export type WorkCatalogAddParams = z.infer<typeof WorkCatalogAddParams>;
+
+export const WorkCatalogRemoveParams = z.object({
+  workId: z.string().min(1),
+  entryId: z.string().min(1),
+  expectedRevision: z.number().int().nonnegative()
+});
+export type WorkCatalogRemoveParams = z.infer<typeof WorkCatalogRemoveParams>;
+
+export const WorkSnapshot = z.object({
+  profile: WorkProfile,
+  members: z.array(AgentView),
+  catalog: WorkCatalog,
+  events: z.array(WorkEvent),
+  tasks: z.array(WorkTaskView),
+  chat: z.array(WorkEvent).transform((events) => events.filter((event) => event.type === "chat.posted"))
+});
+export type WorkSnapshot = z.infer<typeof WorkSnapshot>;
+
+export const WorkEventAppendedEvent = z.object({
+  workId: z.string(),
+  event: WorkEvent
+});
+
+export const WorkCatalogUpdatedEvent = z.object({
+  workId: z.string(),
+  catalog: WorkCatalog
+});
 
 export const SettingsSetParams = z.object({
   defaultToolPermission: ToolPermission.optional(),

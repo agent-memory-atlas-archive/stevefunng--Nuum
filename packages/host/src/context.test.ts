@@ -195,6 +195,25 @@ test("an inbound agent wake is a hidden peer turn and replies through SendToAgen
   assert.doesNotMatch(assembled[1]?.content ?? "", /call SendMessage to actually reply/);
 });
 
+test("a Work wake directs output to Work tools instead of the private chat", () => {
+  const assembled = assembleContext({
+    systemPrompt: "system",
+    transcript: [{
+      type: "wake",
+      id: "w-work",
+      seq: 1,
+      createdAt: 1,
+      source: { kind: "work", workId: "work-1", workName: "Launch", bridgeId: "bridge-1", taskId: "task-1" },
+      text: "Prepare the release",
+      hops: 0
+    }]
+  });
+  assert.match(assembled[1]?.content ?? "", /PostToWork/);
+  assert.match(assembled[1]?.content ?? "", /HandoffTask/);
+  assert.match(assembled[1]?.content ?? "", /not a private user message/i);
+  assert.doesNotMatch(assembled[1]?.content ?? "", /call SendMessage to actually reply/);
+});
+
 test("assembleContext folds multiple checkpoints into the last summary", () => {
   const assembled = assembleContext({
     systemPrompt: "system",

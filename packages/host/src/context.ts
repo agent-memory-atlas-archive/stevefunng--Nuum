@@ -174,6 +174,14 @@ const REPLY_REMINDER =
   "<system_reminder>The message above is waiting for an answer. Plain text you write is a scratchpad the user cannot see; call SendMessage to actually reply.</system_reminder>";
 
 function agentWakePrompt(event: Extract<TranscriptEvent, { type: "wake" }>): string {
+  if (event.source.kind === "work") {
+    return [
+      `<system_reminder>You were assigned work in Work "${event.source.workName}". This is not a private user message.</system_reminder>`,
+      `[work ${event.source.workName}] ${event.text}`,
+      "",
+      "<system_reminder>Use PostToWork for progress visible to the team. When the assignment is ready for review or blocked, use HandoffTask. Do not use SendMessage for Work updates.</system_reminder>"
+    ].join("\n");
+  }
   if (event.source.kind !== "agent") {
     return `[routine ${event.source.routineName}] ${event.text}\n\n${REPLY_REMINDER}`;
   }

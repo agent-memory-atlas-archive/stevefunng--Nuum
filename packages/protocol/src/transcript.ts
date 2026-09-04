@@ -23,6 +23,13 @@ export const WakeSource = z.discriminatedUnion("kind", [
     fromName: z.string(),
     priority: z.boolean().optional()
   }),
+  z.object({
+    kind: z.literal("work"),
+    workId: z.string(),
+    workName: z.string(),
+    bridgeId: z.string(),
+    taskId: z.string().optional()
+  }),
   // 本版不产生，占位给下版的定时唤醒。
   z.object({ kind: z.literal("routine"), routineId: z.string(), routineName: z.string() })
 ]);
@@ -456,6 +463,10 @@ export function describeWake(event: Extract<TranscriptEvent, { type: "wake" }>):
   if (event.source.kind === "agent") {
     const priority = event.source.priority ? " (priority)" : "";
     return `From ${event.source.fromName}${priority}: ${event.text}`;
+  }
+  if (event.source.kind === "work") {
+    const task = event.source.taskId ? ` task ${event.source.taskId}` : "";
+    return `From Work ${event.source.workName}${task}: ${event.text}`;
   }
   return `Routine ${event.source.routineName}: ${event.text}`;
 }

@@ -16,7 +16,7 @@ An Agent keeps a stable identity across tasks. Its transcript records what it ac
 
 ### Work belongs in one place
 
-Project goals, tasks, shared discussion, collaborators, tools, Skills, MCP servers, CLIs, and knowledge sources belong to a Work—not to an arbitrary chat. Work Bar is a planned, independent product line for coordinating these resources without turning Nuum back into a session-first system.
+Project goals, tasks, shared discussion, collaborators, tools, Skills, CLIs, and knowledge sources belong to a Work—not to an arbitrary chat. Work Bar coordinates these resources without turning Nuum back into a session-first system.
 
 ### Proactivity needs a separate context domain
 
@@ -27,7 +27,7 @@ Proactive Mode is a separate planned product line. Ambient screen and accessibil
 Nuum separates durable truth by domain:
 
 - Agent transcripts are the source of truth for what an Agent saw and did.
-- Work timelines will be the source of truth for shared chat, tasks, handoffs, and deliverables.
+- Work timelines are the source of truth for shared chat, tasks, handoffs, and deliverables.
 - Proactive context logs will be the source of truth for permitted environmental observations.
 
 UI timelines, model context, status indicators, and task boards are projections of those truths—not competing databases.
@@ -51,13 +51,14 @@ The current implementation provides:
 - compact checkpoints without rewriting transcript history;
 - action-scoped permissions and local file/search tools;
 - OpenAI, Anthropic, and DeepSeek model routing.
+- Work Bar V1 with an append-only Work timeline, task board, shared room, dynamic Agent membership, scoped dispatch and handoff, and Work-owned Skill, CLI, knowledge, and local-tool configuration.
 
 The Host owns product semantics and persistence. The Kernel only executes model runs identified by `runId` and never owns Agent state.
 
 ## Planned independent product lines
 
 - **Proactive Mode** — a dedicated default Agent backed by a permissioned, bounded ContextStore. It is designed to work without Work Bar.
-- **Work Bar** — a task board, shared chat timeline, member scope, and capability catalog for coordinating persistent Agents. It is designed to work without Proactive Mode.
+- **Work Bar follow-ups** — richer deliverable review, additional capability providers, and networked collaboration. Work Bar remains independent from Proactive Mode.
 
 They may gain an optional proposal-to-task bridge later, but neither is an architectural dependency of the other.
 
@@ -90,7 +91,7 @@ Start with [AGENTS.md](./AGENTS.md) for the project map and [docs/coding](./docs
 
 ## Project status
 
-Nuum is under active development. The agent-first foundation is implemented; Proactive Mode and Work Bar are architecture proposals and are not current product capabilities.
+Nuum is under active development. The agent-first foundation and Work Bar V1 are implemented. Proactive Mode remains an independent work in progress.
 
 ## License
 

@@ -37,6 +37,7 @@ export interface CreateSandboxOptions {
     scratch: string;
     terminals?: string;
     denied: string[];
+    readOnly?: string[];
   };
   permission: ToolPermission;
   approvals?: ToolApproval[];
@@ -72,6 +73,14 @@ class LocalSandbox implements SandboxPort {
     );
     if (denied.some((root) => contains(root, target))) {
       return this.deny(action, target, "Path is inside a protected host-only store.");
+    }
+    const readOnly = await Promise.all(
+      (this.options.roots.readOnly ?? []).map((item) => realpathExistingPrefix(path.resolve(item)))
+    );
+    if (readOnly.some((root) => contains(root, target))) {
+      return action === "read-file" || action === "list-directory"
+        ? this.allow(action, target, "Work read-only knowledge root")
+        : this.deny(action, target, "Path is a Work read-only knowledge root.");
     }
     if (!contains(home, target)) {
       return this.deny(action, target, "Path is outside the allowed local execution root.");

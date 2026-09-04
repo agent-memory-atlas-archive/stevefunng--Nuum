@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { AgentScheduler } from "./scheduler.js";
+import type { RunContext } from "./run-context.js";
 
 /** 起一个永不自行收束的 run，收束时机完全由用例用 settle() 掐。 */
 function held(agentId: string, log: string[]) {
   return {
     agentId,
-    kind: "user" as const,
+    context: { kind: "direct" } as const,
     start: async (runId: string) => {
       log.push(`${agentId}:${runId}`);
     }
@@ -101,11 +102,35 @@ test("runId resolves back to its agent while active, and to nothing after", () =
   scheduler.submit(held("a", []));
   assert.equal(scheduler.agentIdFor("r1"), "a");
   assert.equal(scheduler.activeRunFor("a"), "r1");
+  assert.deepEqual(scheduler.contextFor("r1"), { kind: "direct" });
 
   scheduler.settle("r1");
   // 收束后必须查不到，否则迟到的 Kernel 事件会被记到这个 agent 账上。
   assert.equal(scheduler.agentIdFor("r1"), undefined);
   assert.equal(scheduler.activeRunFor("a"), undefined);
+  assert.equal(scheduler.contextFor("r1"), undefined);
+});
+
+test("a work run keeps one frozen context while it is queued and active", async () => {
+  const scheduler = new AgentScheduler(1, counted());
+  scheduler.submit(held("busy", []));
+  const context: RunContext = {
+    kind: "work",
+    workId: "work-1",
+    taskId: "task-1",
+    triggerEventId: "event-1",
+    catalogRevision: 7,
+    catalog: [],
+    requestedBy: { kind: "user", id: "user-1" }
+  };
+
+  const queued = scheduler.submit({ agentId: "worker", context, start: async () => undefined });
+  assert.equal(queued.state, "queued");
+  assert.deepEqual(scheduler.contextFor(queued.runId), context);
+
+  scheduler.settle("r1");
+  await Promise.resolve();
+  assert.deepEqual(scheduler.contextFor(queued.runId), context);
 });
 
 test("a run whose start throws still frees its slot", async () => {
@@ -113,7 +138,7 @@ test("a run whose start throws still frees its slot", async () => {
   const scheduler = new AgentScheduler(1, counted());
   scheduler.submit({
     agentId: "a",
-    kind: "user",
+    context: { kind: "direct" },
     start: async () => {
       throw new Error("kernel refused");
     }

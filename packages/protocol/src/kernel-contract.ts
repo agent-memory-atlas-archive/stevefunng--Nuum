@@ -47,7 +47,8 @@ export const TurnStartParams = z.object({
     project: z.string().nullable(),
     scratch: z.string(),
     terminals: z.string(),
-    denied: z.array(z.string())
+    denied: z.array(z.string()),
+    readOnly: z.array(z.string()).optional()
   }),
   toolPermission: ToolPermission,
   approvals: z.array(ToolApproval).default([]),

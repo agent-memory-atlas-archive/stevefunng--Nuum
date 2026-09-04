@@ -1,4 +1,4 @@
-import type { AgentView } from "@nuum/protocol";
+import type { AgentView, WorkProfile } from "@nuum/protocol";
 import { useMemo, useRef, useState } from "react";
 import { SandIcon, SandIconButton } from "../kit/sand-kit-primitives";
 import { AgentAvatar } from "./agent-avatar";
@@ -12,11 +12,17 @@ import {
 
 export interface ConversationSidebarProps {
   agents: readonly AgentView[];
+  works: readonly WorkProfile[];
   activeId: string | null;
+  activeWorkId: string | null;
   layout: SidebarLayoutState;
   onLayoutChange(next: SidebarLayoutState): void;
   onNewAgent(): void;
+  onNewWork(): void;
   onOpen(id: string): void;
+  onOpenWork(id: string): void;
+  onMoveAgentToWork(agentId: string, workId: string): void;
+  onDetachAgent(agentId: string): void;
   onOpenSettings(): void;
 }
 
@@ -38,11 +44,17 @@ export function agentAccent(id: string): string {
 
 export function ConversationSidebar({
   agents,
+  works,
   activeId,
+  activeWorkId,
   layout,
   onLayoutChange,
   onNewAgent,
+  onNewWork,
   onOpen,
+  onOpenWork,
+  onMoveAgentToWork,
+  onDetachAgent,
   onOpenSettings
 }: ConversationSidebarProps) {
   const [query, setQuery] = useState("");
@@ -100,7 +112,16 @@ export function ConversationSidebar({
       )}
       <nav aria-label="Agent list" className="sand-agents-list" data-sidebar-collapsed={collapsed || undefined}>
         {!collapsed && visible.length > 0 ? (
-          <div className="sand-agents-list__label">
+          <div
+            className="sand-agents-list__label"
+            onDragOver={(event) => event.preventDefault()}
+            onDrop={(event) => {
+              event.preventDefault();
+              const agentId = event.dataTransfer.getData("application/x-nuum-agent-id");
+              if (agentId) onDetachAgent(agentId);
+            }}
+            title="Drop a Work Agent here to remove it from its Work"
+          >
             <span>Agents</span>
             <span>{visible.length}</span>
           </div>
@@ -113,7 +134,12 @@ export function ConversationSidebar({
               <button
                 className="sand-agent-item"
                 data-active={profile.id === activeId || undefined}
+                draggable
                 key={profile.id}
+                onDragStart={(event) => {
+                  event.dataTransfer.effectAllowed = "move";
+                  event.dataTransfer.setData("application/x-nuum-agent-id", profile.id);
+                }}
                 onClick={() => onOpen(profile.id)}
                 title={profile.name}
                 type="button"
@@ -140,6 +166,47 @@ export function ConversationSidebar({
             ))}
           </div>
         )}
+        <div className="sand-work-section">
+          {!collapsed ? (
+            <div className="sand-agents-list__label sand-work-section__label">
+              <span>Work Bar</span>
+              <span>{works.length}</span>
+              <button aria-label="New Work" onClick={onNewWork} title="New Work" type="button">+</button>
+            </div>
+          ) : null}
+          <div className="sand-agents-section__rows">
+            {works.map((work) => (
+              <button
+                className="sand-work-item"
+                data-active={work.id === activeWorkId || undefined}
+                key={work.id}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  event.dataTransfer.dropEffect = "move";
+                }}
+                onDrop={(event) => {
+                  event.preventDefault();
+                  const agentId = event.dataTransfer.getData("application/x-nuum-agent-id");
+                  if (agentId) onMoveAgentToWork(agentId, work.id);
+                }}
+                onClick={() => onOpenWork(work.id)}
+                title={work.name}
+                type="button"
+              >
+                <span className="sand-work-item__mark">{work.name.slice(0, 1).toUpperCase()}</span>
+                <span className="sand-work-item__body">
+                  <span>{work.name}</span>
+                  <small>{work.description || "New Work"}</small>
+                </span>
+              </button>
+            ))}
+            {collapsed ? (
+              <button aria-label="New Work" className="sand-work-item sand-work-item--new" onClick={onNewWork} title="New Work" type="button">
+                <span className="sand-work-item__mark">+</span>
+              </button>
+            ) : null}
+          </div>
+        </div>
       </nav>
       <footer className="sand-agents-sidebar__footer">
         {collapsed ? (

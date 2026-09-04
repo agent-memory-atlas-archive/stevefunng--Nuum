@@ -251,8 +251,8 @@ test("cancelled comes through as its own status, not as idle", async (t) => {
   assert.equal((await harness.runtime.listAgents())[0]!.runtime.status, "idle");
 });
 
-test("a delegated tool runs on the host and its result goes back to the kernel", async (t) => {
-  const seen: { args: Record<string, unknown>; agentId: string }[] = [];
+test("a delegated tool runs on the host with the frozen run context", async (t) => {
+  const seen: { args: Record<string, unknown>; agentId: string; runKind: string }[] = [];
   const tool: DelegatedTool = {
     definition: {
       name: "send_message",
@@ -261,7 +261,7 @@ test("a delegated tool runs on the host and its result goes back to the kernel",
       mutating: false
     },
     execute: async (args, context) => {
-      seen.push({ args, agentId: context.agentId });
+      seen.push({ args, agentId: context.agentId, runKind: context.runContext.kind });
       return "delivered";
     }
   };
@@ -280,7 +280,7 @@ test("a delegated tool runs on the host and its result goes back to the kernel",
     "the delegated result to come back"
   );
 
-  assert.deepEqual(seen, [{ args: { text: "hi" }, agentId: id }]);
+  assert.deepEqual(seen, [{ args: { text: "hi" }, agentId: id, runKind: "direct" }]);
   assert.deepEqual(harness.kernel.results, [
     { runId: run.runId, toolCallId: "call-1", ok: true, output: "delivered" }
   ]);

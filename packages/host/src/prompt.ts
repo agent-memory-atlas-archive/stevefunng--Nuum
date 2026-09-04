@@ -39,6 +39,8 @@ export interface SystemPromptInput {
   memory?: string;
   /** 第 7 段：队友名录。 */
   agentDirectory?: string;
+  /** 当前运行领域的对外沟通协议。 */
+  communication?: string;
   /** 第 8 段：上文被压缩过的说明。 */
   compactNotice?: string;
 }
@@ -103,7 +105,7 @@ export function renderSystemPrompt(input: SystemPromptInput): SystemPromptRender
     { id: "agent-profile", text: input.frozenProfile ?? liveProfile },
     { id: "environment", text: renderEnvironment(input.environment, input.paths) },
     { id: "tool-guidance", text: TOOL_GUIDANCE },
-    { id: "send-message", text: SEND_MESSAGE },
+    { id: "send-message", text: input.communication ?? SEND_MESSAGE },
     { id: "memory", text: input.memory ?? "" },
     { id: "agent-directory", text: input.agentDirectory ?? "" },
     { id: "compact-notice", text: input.compactNotice ?? "" }

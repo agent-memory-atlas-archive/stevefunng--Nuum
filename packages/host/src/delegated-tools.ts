@@ -1,21 +1,29 @@
 import {
   DELEGATED_TOOL_DEFINITIONS,
+  DelegateWorkParams,
   DelegatedToolNames,
   ReadAgentTranscriptParams,
+  ReadWorkTimelineParams,
+  RunWorkCliParams,
   SendMessageParams,
   SendToAgentParams,
   StopAgentParams,
+  HandoffTaskParams,
+  PostToWorkParams,
   UpdateAgentParams,
   UpdateStateParams,
   CreateAgentParams,
   type ToolDefinition
 } from "@nuum/protocol";
+import type { RunContext } from "./run-context.js";
 
 /**
  * Host 自己执行的工具。Kernel 只拿到 definition，撞上就委派过来（§3.2）。
  */
 export interface DelegatedTool {
   definition: ToolDefinition;
+  /** 省略时只对私人 direct run 开放；跨领域能力必须逐个显式声明。 */
+  runKinds?: readonly RunContext["kind"][];
   execute(args: Record<string, unknown>, context: DelegatedToolContext): Promise<string>;
 }
 
@@ -23,6 +31,7 @@ export interface DelegatedToolContext {
   agentId: string;
   assistantId: string;
   toolCallId: string;
+  runContext: RunContext;
 }
 
 /**
@@ -44,9 +53,34 @@ export interface DelegateHost {
   sendToAgent(agentId: string, params: SendToAgentParams): Promise<string>;
   readAgentTranscript(agentId: string, params: ReadAgentTranscriptParams): Promise<string>;
   stopAgent(agentId: string, params: StopAgentParams): Promise<string>;
+  postToWork(agentId: string, params: PostToWorkParams, context: DelegatedToolContext): Promise<string>;
+  handoffTask(agentId: string, params: HandoffTaskParams, context: DelegatedToolContext): Promise<string>;
+  readWorkTimeline(agentId: string, params: ReadWorkTimelineParams, context: DelegatedToolContext): Promise<string>;
+  runWorkCli(agentId: string, params: RunWorkCliParams, context: DelegatedToolContext): Promise<string>;
+  delegateWork(agentId: string, params: DelegateWorkParams, context: DelegatedToolContext): Promise<string>;
 }
 
 type Handler = (args: Record<string, unknown>, context: DelegatedToolContext) => Promise<string>;
+
+const DEFAULT_RUN_KINDS: readonly RunContext["kind"][] = ["direct"];
+const WORK_TOOL_NAMES = new Set<string>([
+  DelegatedToolNames.postToWork,
+  DelegatedToolNames.handoffTask,
+  DelegatedToolNames.readWorkTimeline,
+  DelegatedToolNames.runWorkCli,
+  DelegatedToolNames.delegateWork
+]);
+
+export function isDelegatedToolAvailable(tool: DelegatedTool, context: RunContext): boolean {
+  return (tool.runKinds ?? DEFAULT_RUN_KINDS).includes(context.kind);
+}
+
+export function delegatedToolsForRunContext(
+  tools: Iterable<DelegatedTool>,
+  context: RunContext
+): DelegatedTool[] {
+  return [...tools].filter((tool) => isDelegatedToolAvailable(tool, context));
+}
 
 /**
  * 工具集由「handler 在不在」决定，不由一份写死的名单决定。这样一个工具要么
@@ -74,6 +108,21 @@ export function createDelegatedTools(host: Partial<DelegateHost>): DelegatedTool
       : undefined,
     [DelegatedToolNames.stopAgent]: host.stopAgent
       ? (args, context) => host.stopAgent!(context.agentId, StopAgentParams.parse(args))
+      : undefined,
+    [DelegatedToolNames.postToWork]: host.postToWork
+      ? (args, context) => host.postToWork!(context.agentId, PostToWorkParams.parse(args), context)
+      : undefined,
+    [DelegatedToolNames.handoffTask]: host.handoffTask
+      ? (args, context) => host.handoffTask!(context.agentId, HandoffTaskParams.parse(args), context)
+      : undefined,
+    [DelegatedToolNames.readWorkTimeline]: host.readWorkTimeline
+      ? (args, context) => host.readWorkTimeline!(context.agentId, ReadWorkTimelineParams.parse(args), context)
+      : undefined,
+    [DelegatedToolNames.runWorkCli]: host.runWorkCli
+      ? (args, context) => host.runWorkCli!(context.agentId, RunWorkCliParams.parse(args), context)
+      : undefined,
+    [DelegatedToolNames.delegateWork]: host.delegateWork
+      ? (args, context) => host.delegateWork!(context.agentId, DelegateWorkParams.parse(args), context)
       : undefined
   };
 
@@ -81,6 +130,9 @@ export function createDelegatedTools(host: Partial<DelegateHost>): DelegatedTool
     (definition: ToolDefinition) => handlers[definition.name] !== undefined
   ).map((definition: ToolDefinition) => ({
     definition,
+    ...(WORK_TOOL_NAMES.has(definition.name)
+      ? { runKinds: ["work"] as const }
+      : {}),
     execute: async (args, context) => {
       try {
         return await handlers[definition.name]!(args, context);

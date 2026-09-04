@@ -8,7 +8,20 @@ import {
   HostMethods,
   RpcError,
   SettingsSetParams,
-  TranscriptQuery
+  TranscriptQuery,
+  WorkCatalogAddParams,
+  WorkCatalogRemoveParams,
+  WorkCreateParams,
+  WorkDispatchParams,
+  WorkIdParams,
+  WorkMemberAttachParams,
+  WorkMemberDetachParams,
+  WorkMemberMoveParams,
+  WorkPostMessageParams,
+  WorkTaskAssignParams,
+  WorkTaskCreateParams,
+  WorkTaskTransitionParams,
+  WorkUpdateParams
 } from "@nuum/protocol";
 import { JsonRpcPeer, createStdioDuplex } from "@nuum/protocol/node";
 import { HostRuntime, type HostRuntimeOptions } from "./runtime.js";
@@ -63,6 +76,34 @@ export async function createHostServer(options: HostRuntimeOptions): Promise<Hos
           method === HostMethods.agentDenyTool ? "deny" : params.resolution
         );
       }
+      case HostMethods.workCreate:
+        return runtime.createWork(WorkCreateParams.parse(raw));
+      case HostMethods.workList:
+        return runtime.listWorks();
+      case HostMethods.workGet:
+        return runtime.getWork(WorkIdParams.parse(raw).id);
+      case HostMethods.workUpdate:
+        return runtime.updateWork(WorkUpdateParams.parse(raw));
+      case HostMethods.workPostMessage:
+        return runtime.postWorkMessage(WorkPostMessageParams.parse(raw));
+      case HostMethods.workMemberAttach:
+        return runtime.attachWorkMember(WorkMemberAttachParams.parse(raw));
+      case HostMethods.workMemberDetach:
+        return runtime.detachWorkMember(WorkMemberDetachParams.parse(raw));
+      case HostMethods.workMemberMove:
+        return runtime.moveWorkMember(WorkMemberMoveParams.parse(raw));
+      case HostMethods.workTaskCreate:
+        return runtime.createWorkTask(WorkTaskCreateParams.parse(raw));
+      case HostMethods.workTaskAssign:
+        return runtime.assignWorkTask(WorkTaskAssignParams.parse(raw));
+      case HostMethods.workTaskTransition:
+        return runtime.transitionWorkTask(WorkTaskTransitionParams.parse(raw));
+      case HostMethods.workDispatch:
+        return runtime.dispatchWork(WorkDispatchParams.parse(raw));
+      case HostMethods.workCatalogAdd:
+        return runtime.addWorkCatalogEntry(WorkCatalogAddParams.parse(raw));
+      case HostMethods.workCatalogRemove:
+        return runtime.removeWorkCatalogEntry(WorkCatalogRemoveParams.parse(raw));
       case HostMethods.toolsList:
         return runtime.tools();
       default:

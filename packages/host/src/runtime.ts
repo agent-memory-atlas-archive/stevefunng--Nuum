@@ -1,7 +1,11 @@
+import { execFile } from "node:child_process";
+import { readFile } from "node:fs/promises";
 import { homedir, platform, release } from "node:os";
 import path from "node:path";
+import { promisify } from "node:util";
 import {
   DEFAULT_AGENT_NAME,
+  type DelegateWorkParams,
   HostErrorCode,
   HostEvents,
   RpcError,
@@ -19,10 +23,14 @@ import {
   type CreateAgentParams,
   type LocalToolAction,
   type ReadAgentTranscriptParams,
+  type ReadWorkTimelineParams,
+  type RunWorkCliParams,
   type SendMessageParams,
   type SendToAgentParams,
   type Settings,
   type StopAgentParams,
+  type HandoffTaskParams,
+  type PostToWorkParams,
   type UpdateAgentParams,
   type SettingsSetParams,
   type ToolDefinition,
@@ -30,7 +38,27 @@ import {
   type ToolPermission,
   type ToolResolution,
   type UpdateStateParams,
-  type TranscriptEvent
+  type TranscriptEvent,
+  type WorkCatalog,
+  type WorkCatalogAddParams,
+  type WorkCatalogEntry,
+  type WorkCatalogRemoveParams,
+  type WorkCreateParams,
+  type WorkDispatchParams,
+  type WorkEvent,
+  type WorkMemberAttachParams,
+  type WorkMemberDetachParams,
+  type WorkMemberMoveParams,
+  type WorkPostMessageParams,
+  type WorkProfile,
+  type WorkRole,
+  type WorkSnapshot,
+  type WorkTask,
+  type WorkTaskAssignParams,
+  type WorkTaskCreateParams,
+  type WorkTaskTransitionParams,
+  type WorkTaskView,
+  type WorkUpdateParams
 } from "@nuum/protocol";
 import { AgentStore, type AgentRecord } from "./agent-store.js";
 import {
@@ -43,6 +71,8 @@ import {
 } from "./context.js";
 import {
   createDelegatedTools,
+  delegatedToolsForRunContext,
+  isDelegatedToolAvailable,
   type DelegateHost,
   type DelegatedTool,
   type DelegatedToolContext
@@ -65,14 +95,18 @@ import {
   renderSystemPrompt,
   type AgentIdentity
 } from "./prompt.js";
-import { AgentScheduler, DEFAULT_MAX_CONCURRENT_RUNS, type RunKind } from "./scheduler.js";
+import { DIRECT_RUN_CONTEXT, type RunContext } from "./run-context.js";
+import { AgentScheduler, DEFAULT_MAX_CONCURRENT_RUNS } from "./scheduler.js";
 import { MAX_AGENTS, WakeQueue, currentHops, pendingWake } from "./wake.js";
+import { WorkStore, projectWork } from "./work-store.js";
+import { allowedTaskTransitions, assertTaskTransition } from "./work-task-policy.js";
 
 /**
  * 往回扫多少条找上一条 user / wake。一个 turn 里工具事件可以很多，但不会多到
  * 这个量级；真扫不到说明这条转录里根本没有唤醒链，当 0 手是对的。
  */
 const HOPS_SCAN_LIMIT = 200;
+const execFileAsync = promisify(execFile);
 
 export type { DelegatedTool };
 
@@ -91,6 +125,7 @@ export interface HostRuntimeOptions {
 
 export class HostRuntime implements Partial<DelegateHost> {
   readonly store: AgentStore;
+  readonly workStore: WorkStore;
   readonly scheduler: AgentScheduler;
   private settings!: Settings;
   private kernel: KernelClient | null = null;
@@ -118,6 +153,7 @@ export class HostRuntime implements Partial<DelegateHost> {
 
   constructor(private readonly options: HostRuntimeOptions) {
     this.store = new AgentStore(options.dataDir);
+    this.workStore = new WorkStore(options.dataDir);
     this.scheduler = new AgentScheduler(options.maxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS);
     // 产品工具（§5.2）由 runtime 自己装：它们的副作用全在 runtime 上，没有
     // 别处能提供。options.delegatedTools 留给测试往里塞额外的桩。
@@ -132,6 +168,7 @@ export class HostRuntime implements Partial<DelegateHost> {
 
   async start(): Promise<void> {
     await this.store.init();
+    await this.workStore.init();
     this.settings = await this.store.readSettings();
     this.attachKernel();
     // 重放放最后：它要 kernel 在位，而且不该拖慢 RPC 上线。
@@ -273,6 +310,392 @@ export class HostRuntime implements Partial<DelegateHost> {
     return { id, ...page };
   }
 
+  // ── Work 生命周期与投影 ─────────────────────────────────────────────────
+
+  async createWork(params: WorkCreateParams): Promise<WorkProfile> {
+    const profile = await this.workStore.createWork({
+      id: crypto.randomUUID(),
+      name: params.name.trim(),
+      description: params.description.trim(),
+      projectRoot: params.projectRoot ? path.resolve(params.projectRoot) : null,
+      createdAt: Date.now()
+    });
+    this.emit(HostEvents.workUpdated, { work: profile });
+    return profile;
+  }
+
+  listWorks(): WorkProfile[] {
+    return this.workStore.listWorks();
+  }
+
+  async updateWork(params: WorkUpdateParams): Promise<WorkProfile> {
+    const profile = await this.workStore.updateWork(params.id, {
+      ...(params.name !== undefined ? { name: params.name.trim() } : {}),
+      ...(params.description !== undefined ? { description: params.description.trim() } : {}),
+      ...(params.projectRoot !== undefined
+        ? { projectRoot: params.projectRoot ? path.resolve(params.projectRoot) : null }
+        : {})
+    });
+    this.emit(HostEvents.workUpdated, { work: profile });
+    return profile;
+  }
+
+  async getWork(id: string): Promise<WorkSnapshot> {
+    const profile = this.workStore.getWork(id);
+    const [catalog, events] = await Promise.all([
+      this.workStore.readCatalog(id),
+      this.workStore.readTimeline(id)
+    ]);
+    const projection = projectWork(events);
+    const members = await Promise.all(
+      this.store
+        .listAgents()
+        .filter((record) => record.settings.workMembership?.binding?.workId === id)
+        .map((record) => this.viewFor(record))
+    );
+    return {
+      profile,
+      members,
+      catalog,
+      events,
+      tasks: projection.tasks.map((task) => this.workTaskView(task)),
+      chat: projection.chat
+    };
+  }
+
+  async postWorkMessage(params: WorkPostMessageParams) {
+    this.workStore.requireWork(params.workId);
+    const event = await this.workStore.appendEvent(params.workId, {
+      type: "chat.posted",
+      id: crypto.randomUUID(),
+      workId: params.workId,
+      createdAt: Date.now(),
+      actor: { kind: "user", id: "local-user" },
+      messageId: crypto.randomUUID(),
+      body: params.body.trim(),
+      mentionedAgentIds: params.mentionedAgentIds
+    });
+    this.emit(HostEvents.workEventAppended, { workId: params.workId, event });
+    return event;
+  }
+
+  async attachWorkMember(params: WorkMemberAttachParams): Promise<AgentView> {
+    this.workStore.requireWork(params.workId);
+    const record = this.store.requireAgent(params.agentId);
+    const membership = currentMembership(record);
+    this.assertMembershipRevision(membership.revision, params.expectedRevision);
+    if (membership.binding) {
+      throw new RpcError(
+        HostErrorCode.WORK_CONFLICT,
+        `Agent already belongs to Work ${membership.binding.workId}; move it instead`
+      );
+    }
+    const operationId = crypto.randomUUID();
+    const updated = await this.store.updateAgent(params.agentId, {
+      settings: {
+        workMembership: {
+          revision: membership.revision + 1,
+          binding: {
+            workId: params.workId,
+            role: params.role,
+            joinedAt: Date.now(),
+            grants: grantsForRole(params.role)
+          }
+        }
+      }
+    });
+    const event = await this.workStore.appendEvent(params.workId, {
+      type: "member.attached",
+      id: crypto.randomUUID(),
+      workId: params.workId,
+      createdAt: Date.now(),
+      actor: { kind: "user", id: "local-user" },
+      membershipOperationId: operationId,
+      agentId: params.agentId,
+      role: params.role,
+      membershipRevision: membership.revision + 1
+    });
+    const view = await this.viewFor(updated);
+    this.emit(HostEvents.agentUpdated, { agent: view });
+    this.emit(HostEvents.workEventAppended, { workId: params.workId, event });
+    this.emit(HostEvents.workUpdated, { work: this.workStore.getWork(params.workId) });
+    return view;
+  }
+
+  async detachWorkMember(params: WorkMemberDetachParams): Promise<AgentView> {
+    const record = this.store.requireAgent(params.agentId);
+    const membership = currentMembership(record);
+    this.assertMembershipRevision(membership.revision, params.expectedRevision);
+    if (membership.binding?.workId !== params.workId) {
+      throw new RpcError(HostErrorCode.WORK_CONFLICT, "Agent is not attached to this Work");
+    }
+    this.assertNotRunningWork(params.agentId, params.workId);
+    const operationId = crypto.randomUUID();
+    const updated = await this.store.updateAgent(params.agentId, {
+      settings: {
+        workMembership: { revision: membership.revision + 1, binding: null }
+      }
+    });
+    const event = await this.workStore.appendEvent(params.workId, {
+      type: "member.detached",
+      id: crypto.randomUUID(),
+      workId: params.workId,
+      createdAt: Date.now(),
+      actor: { kind: "user", id: "local-user" },
+      membershipOperationId: operationId,
+      agentId: params.agentId,
+      membershipRevision: membership.revision + 1
+    });
+    const view = await this.viewFor(updated);
+    this.emit(HostEvents.agentUpdated, { agent: view });
+    this.emit(HostEvents.workEventAppended, { workId: params.workId, event });
+    this.emit(HostEvents.workUpdated, { work: this.workStore.getWork(params.workId) });
+    return view;
+  }
+
+  async moveWorkMember(params: WorkMemberMoveParams): Promise<AgentView> {
+    if (params.fromWorkId === params.toWorkId) {
+      throw new RpcError(HostErrorCode.WORK_CONFLICT, "Source and destination Work are the same");
+    }
+    this.workStore.requireWork(params.fromWorkId);
+    this.workStore.requireWork(params.toWorkId);
+    const record = this.store.requireAgent(params.agentId);
+    const membership = currentMembership(record);
+    this.assertMembershipRevision(membership.revision, params.expectedRevision);
+    if (membership.binding?.workId !== params.fromWorkId) {
+      throw new RpcError(HostErrorCode.WORK_CONFLICT, "Agent is not attached to the source Work");
+    }
+    this.assertNotRunningWork(params.agentId, params.fromWorkId);
+    const operationId = crypto.randomUUID();
+    const revision = membership.revision + 1;
+    const updated = await this.store.updateAgent(params.agentId, {
+      settings: {
+        workMembership: {
+          revision,
+          binding: {
+            workId: params.toWorkId,
+            role: params.role,
+            joinedAt: Date.now(),
+            grants: grantsForRole(params.role)
+          }
+        }
+      }
+    });
+    const detached = await this.workStore.appendEvent(params.fromWorkId, {
+      type: "member.detached",
+      id: crypto.randomUUID(),
+      workId: params.fromWorkId,
+      createdAt: Date.now(),
+      actor: { kind: "user", id: "local-user" },
+      membershipOperationId: operationId,
+      agentId: params.agentId,
+      membershipRevision: revision
+    });
+    const attached = await this.workStore.appendEvent(params.toWorkId, {
+      type: "member.attached",
+      id: crypto.randomUUID(),
+      workId: params.toWorkId,
+      createdAt: Date.now(),
+      actor: { kind: "user", id: "local-user" },
+      membershipOperationId: operationId,
+      agentId: params.agentId,
+      role: params.role,
+      membershipRevision: revision
+    });
+    const view = await this.viewFor(updated);
+    this.emit(HostEvents.agentUpdated, { agent: view });
+    this.emit(HostEvents.workEventAppended, { workId: params.fromWorkId, event: detached });
+    this.emit(HostEvents.workEventAppended, { workId: params.toWorkId, event: attached });
+    this.emit(HostEvents.workUpdated, { work: this.workStore.getWork(params.fromWorkId) });
+    this.emit(HostEvents.workUpdated, { work: this.workStore.getWork(params.toWorkId) });
+    return view;
+  }
+
+  async createWorkTask(params: WorkTaskCreateParams): Promise<WorkTaskView> {
+    await this.assertWorkAssignees(params.workId, params.assigneeIds);
+    const now = Date.now();
+    const task: WorkTask = {
+      id: crypto.randomUUID(),
+      title: params.title.trim(),
+      description: params.description.trim(),
+      acceptanceCriteria: params.acceptanceCriteria,
+      state: "proposed",
+      assigneeIds: params.assigneeIds,
+      dependencyIds: params.dependencyIds,
+      priority: params.priority,
+      revision: 1,
+      deliverables: [],
+      createdAt: now,
+      updatedAt: now
+    };
+    const event = await this.workStore.appendEvent(params.workId, {
+      type: "task.created",
+      id: crypto.randomUUID(),
+      workId: params.workId,
+      createdAt: now,
+      actor: { kind: "user", id: "local-user" },
+      task
+    });
+    this.emit(HostEvents.workEventAppended, { workId: params.workId, event });
+    return this.workTaskView(task);
+  }
+
+  async assignWorkTask(params: WorkTaskAssignParams): Promise<WorkTaskView> {
+    await this.assertWorkAssignees(params.workId, params.assigneeIds);
+    const task = await this.requireWorkTask(params.workId, params.taskId);
+    this.assertTaskRevision(task, params.expectedRevision);
+    const event = await this.workStore.appendEvent(params.workId, {
+      type: "task.assigned",
+      id: crypto.randomUUID(),
+      workId: params.workId,
+      createdAt: Date.now(),
+      actor: { kind: "user", id: "local-user" },
+      taskId: params.taskId,
+      assigneeIds: params.assigneeIds,
+      revision: task.revision + 1
+    });
+    this.emit(HostEvents.workEventAppended, { workId: params.workId, event });
+    return this.workTaskView(await this.requireWorkTask(params.workId, params.taskId));
+  }
+
+  async transitionWorkTask(params: WorkTaskTransitionParams): Promise<WorkTaskView> {
+    const task = await this.requireWorkTask(params.workId, params.taskId);
+    this.assertTaskRevision(task, params.expectedRevision);
+    assertTaskTransition(task.state, params.to, "user");
+    if (params.to === "blocked" && !params.blocker) {
+      throw new RpcError(HostErrorCode.WORK_CONFLICT, "A blocker reason is required");
+    }
+    const event = await this.workStore.appendEvent(params.workId, {
+      type: "task.transitioned",
+      id: crypto.randomUUID(),
+      workId: params.workId,
+      createdAt: Date.now(),
+      actor: { kind: "user", id: "local-user" },
+      taskId: params.taskId,
+      from: task.state,
+      to: params.to,
+      revision: task.revision + 1,
+      ...(params.blocker ? { blocker: params.blocker } : {})
+    });
+    this.emit(HostEvents.workEventAppended, { workId: params.workId, event });
+    return this.workTaskView(await this.requireWorkTask(params.workId, params.taskId));
+  }
+
+  async dispatchWork(params: WorkDispatchParams): Promise<{ ok: true; runId: string; queued: boolean }> {
+    return this.dispatchWorkFrom(params, { kind: "user", id: "local-user" });
+  }
+
+  private async dispatchWorkFrom(
+    params: WorkDispatchParams,
+    requestedBy: { kind: "user" | "agent"; id: string }
+  ): Promise<{ ok: true; runId: string; queued: boolean }> {
+    const work = this.workStore.getWork(params.workId);
+    const agent = this.store.requireAgent(params.agentId);
+    if (agent.settings.workMembership?.binding?.workId !== params.workId) {
+      throw new RpcError(HostErrorCode.WORK_FORBIDDEN, "Agent is not a member of this Work");
+    }
+    if (this.scheduler.isBusy(params.agentId)) {
+      throw new RpcError(HostErrorCode.AGENT_BUSY, "Agent is already running a turn");
+    }
+    if (this.agentHasPending(params.agentId)) {
+      throw new RpcError(HostErrorCode.AGENT_BUSY, "Resolve the Agent's pending tool before dispatching Work");
+    }
+    const model = resolveSessionModel({
+      sessionModel: agent.settings.model,
+      defaultModel: this.settings.defaultModel,
+      secrets: this.store.secrets
+    });
+    precheck({ exists: true, busy: false, model, secrets: this.store.secrets });
+    if (params.taskId) {
+      const task = await this.requireWorkTask(params.workId, params.taskId);
+      if (!task.assigneeIds.includes(params.agentId)) {
+        throw new RpcError(HostErrorCode.WORK_FORBIDDEN, "Assign the task to this Agent before dispatching it");
+      }
+    }
+    if (!this.kernel) throw new RpcError(HostErrorCode.KERNEL_DOWN, "Kernel is not available");
+
+    const catalog = await this.workStore.readCatalog(params.workId);
+    const bridgeId = crypto.randomUUID();
+    const requested = await this.workStore.appendEvent(params.workId, {
+      type: "dispatch.requested",
+      id: crypto.randomUUID(),
+      workId: params.workId,
+      createdAt: Date.now(),
+      actor: requestedBy,
+      bridgeId,
+      agentId: params.agentId,
+      ...(params.taskId ? { taskId: params.taskId } : {}),
+      instruction: params.instruction.trim()
+    });
+    const wake = await this.store.appendEvent(params.agentId, {
+      type: "wake",
+      id: crypto.randomUUID(),
+      source: {
+        kind: "work",
+        workId: params.workId,
+        workName: work.name,
+        bridgeId,
+        ...(params.taskId ? { taskId: params.taskId } : {})
+      },
+      text: params.instruction.trim(),
+      hops: 0,
+      createdAt: Date.now()
+    });
+    const acknowledged = await this.workStore.appendEvent(params.workId, {
+      type: "dispatch.acknowledged",
+      id: crypto.randomUUID(),
+      workId: params.workId,
+      createdAt: Date.now(),
+      actor: { kind: "system", id: "host" },
+      causationId: requested.id,
+      bridgeId,
+      agentId: params.agentId,
+      transcriptEventId: wake.id
+    });
+    this.emit(HostEvents.workEventAppended, { workId: params.workId, event: requested });
+    this.emit(HostEvents.agentMessageCompleted, { agentId: params.agentId, event: wake });
+    this.emit(HostEvents.workEventAppended, { workId: params.workId, event: acknowledged });
+
+    const submitted = this.launch(params.agentId, {
+      kind: "work",
+      workId: params.workId,
+      ...(params.taskId ? { taskId: params.taskId } : {}),
+      triggerEventId: requested.id,
+      catalogRevision: catalog.revision,
+      catalog: catalog.entries,
+      requestedBy
+    });
+    this.emit(HostEvents.agentUpdated, { agent: await this.viewFor(this.store.requireAgent(params.agentId)) });
+    await submitted.started;
+    return { ok: true, runId: submitted.runId, queued: submitted.state === "queued" };
+  }
+
+  async addWorkCatalogEntry(params: WorkCatalogAddParams): Promise<WorkCatalog> {
+    const entry = {
+      ...params.entry,
+      id: crypto.randomUUID(),
+      enabled: true,
+      ...(params.entry.kind === "skill" ? { manifestPath: path.resolve(params.entry.manifestPath) } : {}),
+      ...(params.entry.kind === "cli" ? { executable: path.resolve(params.entry.executable) } : {}),
+      ...(params.entry.kind === "knowledge" ? { roots: params.entry.roots.map((root) => path.resolve(root)) } : {})
+    } as WorkCatalogEntry;
+    const catalog = await this.workStore.updateCatalog(params.workId, params.expectedRevision, (current) => ({
+      revision: current.revision + 1,
+      entries: [...current.entries, entry]
+    }));
+    this.emit(HostEvents.workCatalogUpdated, { workId: params.workId, catalog });
+    return catalog;
+  }
+
+  async removeWorkCatalogEntry(params: WorkCatalogRemoveParams): Promise<WorkCatalog> {
+    const catalog = await this.workStore.updateCatalog(params.workId, params.expectedRevision, (current) => ({
+      revision: current.revision + 1,
+      entries: current.entries.filter((entry) => entry.id !== params.entryId)
+    }));
+    this.emit(HostEvents.workCatalogUpdated, { workId: params.workId, catalog });
+    return catalog;
+  }
+
   // ── 回合 ────────────────────────────────────────────────────────────────
 
   async send(id: string, content: string): Promise<{ ok: true; runId: string; queued: boolean }> {
@@ -312,7 +735,7 @@ export class HostRuntime implements Partial<DelegateHost> {
     }
     this.emit(HostEvents.agentMessageCompleted, { agentId: id, event: user });
 
-    const { runId, state, started } = this.launch(id, "user");
+    const { runId, state, started } = this.launch(id, DIRECT_RUN_CONTEXT);
     this.emit(HostEvents.agentUpdated, { agent: await this.viewFor(this.store.requireAgent(id)) });
     // 立刻起的 run 等它真的进了 Kernel 再回 —— 否则拉起失败会被吞掉，用户以为发出去了。
     await started;
@@ -326,12 +749,14 @@ export class HostRuntime implements Partial<DelegateHost> {
    */
   private launch(
     id: string,
-    kind: RunKind
+    context: RunContext
   ): { runId: string; state: "started" | "queued"; started?: Promise<void> } {
     const submitted = this.scheduler.submit({
       agentId: id,
-      kind,
+      context,
       start: async (activeRunId) => {
+        const activeContext = this.scheduler.contextFor(activeRunId);
+        if (!activeContext) throw new Error(`Run ${activeRunId} lost its context before start`);
         const record = this.store.requireAgent(id);
         const model = resolveSessionModel({
           sessionModel: record.settings.model,
@@ -339,7 +764,7 @@ export class HostRuntime implements Partial<DelegateHost> {
           secrets: this.store.secrets
         });
         let { events: replayed, compact } = await this.readModelTranscript(id);
-        let prompt = await this.buildSystemPrompt(id, Boolean(compact));
+        let prompt = await this.buildSystemPrompt(id, Boolean(compact), activeContext);
         let assembled = assembleContext({
           transcript: replayed,
           systemPrompt: prompt.text,
@@ -350,7 +775,7 @@ export class HostRuntime implements Partial<DelegateHost> {
             const compacted = await this.compact(id, activeRunId, replayed, model);
             if (compacted) {
               ({ events: replayed, compact } = await this.readModelTranscript(id));
-              prompt = await this.buildSystemPrompt(id, Boolean(compact));
+              prompt = await this.buildSystemPrompt(id, Boolean(compact), activeContext);
               assembled = assembleContext({
                 transcript: replayed,
                 systemPrompt: prompt.text,
@@ -367,12 +792,27 @@ export class HostRuntime implements Partial<DelegateHost> {
           runId: activeRunId,
           messages: assembled,
           model,
-          roots: this.toolRoots(record),
+          roots: this.toolRoots(record, activeContext),
           toolPermission: record.settings.workspace?.toolPermission ?? this.settings.defaultToolPermission,
           approvals: approvals.always,
           refused: approvals.refused,
-          localToolNames: this.toolCache.map((tool) => tool.name),
-          delegatedTools: [...this.delegated.values()].map((tool) => tool.definition),
+          // Proactive / Work 的本地工具由各自 capability catalog 显式装配。
+          // 在那之前默认空集，绝不继承私人 run 的文件和 shell 能力。
+          localToolNames: activeContext.kind === "direct"
+            ? this.toolCache.map((tool) => tool.name)
+            : activeContext.kind === "work"
+              ? [...new Set([
+                  ...activeContext.catalog
+                    .filter((entry) => entry.kind === "local-tool" && entry.enabled)
+                    .flatMap((entry) => entry.kind === "local-tool" ? entry.toolNames : []),
+                  ...(activeContext.catalog.some((entry) => entry.kind === "knowledge" && entry.enabled)
+                    ? ["read", "ls", "glob", "grep"]
+                    : [])
+                ])]
+              : [],
+          delegatedTools: delegatedToolsForRunContext(this.delegated.values(), activeContext).map(
+            (tool) => tool.definition
+          ),
           secrets: this.store.secrets
         });
       }
@@ -453,6 +893,141 @@ export class HostRuntime implements Partial<DelegateHost> {
     if (params.type === "text") return "Delivered.";
     if (params.type === "attachment") return `Delivered ${params.path}.`;
     return `Delivered the ${params.widget} widget.`;
+  }
+
+  async postToWork(
+    agentId: string,
+    params: PostToWorkParams,
+    context: DelegatedToolContext
+  ): Promise<string> {
+    const run = requireWorkRun(context.runContext);
+    this.assertWorkAgent(agentId, run.workId);
+    const event = await this.workStore.appendEvent(run.workId, {
+      type: "chat.posted",
+      id: crypto.randomUUID(),
+      workId: run.workId,
+      createdAt: Date.now(),
+      actor: { kind: "agent", id: agentId },
+      causationId: run.triggerEventId,
+      messageId: crypto.randomUUID(),
+      body: params.message.trim(),
+      mentionedAgentIds: []
+    });
+    this.emit(HostEvents.workEventAppended, { workId: run.workId, event });
+    return "Posted to the Work shared room.";
+  }
+
+  async handoffTask(
+    agentId: string,
+    params: HandoffTaskParams,
+    context: DelegatedToolContext
+  ): Promise<string> {
+    const run = requireWorkRun(context.runContext);
+    if (!run.taskId) throw new RpcError(HostErrorCode.WORK_CONFLICT, "This Work run has no task to hand off");
+    const record = this.assertWorkAgent(agentId, run.workId);
+    const task = await this.requireWorkTask(run.workId, run.taskId);
+    if (!task.assigneeIds.includes(agentId)) {
+      throw new RpcError(HostErrorCode.WORK_FORBIDDEN, "This task is not assigned to you");
+    }
+    const role = record.settings.workMembership!.binding!.role;
+    assertTaskTransition(task.state, params.status, role);
+    if (params.status === "blocked" && !params.blocker_reason?.trim()) {
+      throw new RpcError(HostErrorCode.WORK_CONFLICT, "blocker_reason is required when status is blocked");
+    }
+    const now = Date.now();
+    const deliverables = params.deliverables.map((item) => ({
+      id: crypto.randomUUID(),
+      name: item.name,
+      uri: item.uri,
+      ...(item.mime_type ? { mimeType: item.mime_type } : {}),
+      createdAt: now
+    }));
+    const handoff = await this.workStore.appendEvent(run.workId, {
+      type: "task.handed_off",
+      id: crypto.randomUUID(),
+      workId: run.workId,
+      createdAt: now,
+      actor: { kind: "agent", id: agentId },
+      causationId: run.triggerEventId,
+      taskId: task.id,
+      summary: params.summary.trim(),
+      deliverables,
+      nextStatus: params.status,
+      ...(params.blocker_reason ? { blockerReason: params.blocker_reason.trim() } : {}),
+      revision: task.revision + 1
+    });
+    const message = await this.workStore.appendEvent(run.workId, {
+      type: "chat.posted",
+      id: crypto.randomUUID(),
+      workId: run.workId,
+      createdAt: now,
+      actor: { kind: "agent", id: agentId },
+      causationId: handoff.id,
+      messageId: crypto.randomUUID(),
+      body: params.status === "blocked"
+        ? `${params.summary.trim()}\n\nBlocked: ${params.blocker_reason!.trim()}`
+        : params.summary.trim(),
+      mentionedAgentIds: []
+    });
+    this.emit(HostEvents.workEventAppended, { workId: run.workId, event: handoff });
+    this.emit(HostEvents.workEventAppended, { workId: run.workId, event: message });
+    if (params.status === "review") return "Handed off for review.";
+    if (params.status === "done") return "Marked done as Work coordinator.";
+    return "Reported blocked.";
+  }
+
+  async readWorkTimeline(
+    agentId: string,
+    params: ReadWorkTimelineParams,
+    context: DelegatedToolContext
+  ): Promise<string> {
+    const run = requireWorkRun(context.runContext);
+    this.assertWorkAgent(agentId, run.workId);
+    const events = (await this.workStore.readTimeline(run.workId)).slice(-params.limit);
+    return events.length ? events.map(renderWorkEventForAgent).join("\n") : "The Work timeline is empty.";
+  }
+
+  async runWorkCli(
+    agentId: string,
+    params: RunWorkCliParams,
+    context: DelegatedToolContext
+  ): Promise<string> {
+    const run = requireWorkRun(context.runContext);
+    this.assertWorkAgent(agentId, run.workId);
+    const capability = run.catalog.find((entry) => entry.id === params.capability_id && entry.kind === "cli");
+    if (!capability || capability.kind !== "cli" || !capability.enabled) {
+      throw new RpcError(HostErrorCode.WORK_FORBIDDEN, "CLI capability is not installed in this Work run");
+    }
+    const subcommand = params.args[0];
+    if (subcommand && !capability.allowedSubcommands.includes(subcommand)) {
+      throw new RpcError(HostErrorCode.WORK_FORBIDDEN, "That CLI subcommand is not allowed by this Work");
+    }
+    const work = this.workStore.getWork(run.workId);
+    const result = await execFileAsync(capability.executable, params.args, {
+      cwd: work.projectRoot ?? undefined,
+      timeout: 120_000,
+      maxBuffer: 1024 * 1024
+    });
+    return [result.stdout, result.stderr].filter(Boolean).join("\n").slice(0, 100_000) || "Command completed.";
+  }
+
+  async delegateWork(
+    agentId: string,
+    params: DelegateWorkParams,
+    context: DelegatedToolContext
+  ): Promise<string> {
+    const run = requireWorkRun(context.runContext);
+    const caller = this.assertWorkAgent(agentId, run.workId);
+    if (!caller.settings.workMembership!.binding!.grants.canAssignTasks) {
+      throw new RpcError(HostErrorCode.WORK_FORBIDDEN, "Only a Work coordinator can delegate to another Agent");
+    }
+    await this.dispatchWorkFrom({
+      workId: run.workId,
+      agentId: params.agent_id,
+      ...(params.task_id ? { taskId: params.task_id } : {}),
+      instruction: params.instruction
+    }, { kind: "agent", id: agentId });
+    return "Delegated inside this Work.";
   }
 
   /**
@@ -608,7 +1183,7 @@ export class HostRuntime implements Partial<DelegateHost> {
       this.wakes.enqueue(params.agent_id, wake);
       return `Sent to ${target.profile.name}. It is busy, so this is queued behind what it is doing.`;
     }
-    const { started } = this.launch(params.agent_id, "agent");
+    const { started } = this.launch(params.agent_id, DIRECT_RUN_CONTEXT);
     this.emit(HostEvents.agentUpdated, { agent: await this.viewFor(this.store.requireAgent(params.agent_id)) });
     try {
       // 投递是 fire-and-forget（不等对方跑完），但**起 run** 这一步要等 ——
@@ -663,7 +1238,11 @@ export class HostRuntime implements Partial<DelegateHost> {
    * 的前缀因此逐字节不变；identity 与快照不一致时不去 bump epoch（一次改名不值
    * 得作废整个前缀缓存），而是在上下文尾部补一条飘移说明（§6.1）。
    */
-  async buildSystemPrompt(id: string, hasCompact?: boolean): Promise<{ text: string; notices: string[] }> {
+  async buildSystemPrompt(
+    id: string,
+    hasCompact?: boolean,
+    runContext: RunContext = DIRECT_RUN_CONTEXT
+  ): Promise<{ text: string; notices: string[] }> {
     const record = this.store.requireAgent(id);
     const expert = this.options.expert?.resolve(id);
     if (expert) return { text: expert.systemPrompt, notices: [] };
@@ -699,11 +1278,20 @@ export class HostRuntime implements Partial<DelegateHost> {
       },
       frozenProfile: cache.profile?.render,
       memory,
+      ...(runContext.kind === "work" ? {
+        communication: [
+          "## Talking in this Work",
+          "",
+          "PostToWork is your progress channel for the shared room. HandoffTask is the only way to return an assigned task for review or report it blocked.",
+          "Your private Agent chat remains separate. SendMessage is unavailable in this run; do not move Work updates into the private transcript."
+        ].join("\n")
+      } : {}),
       agentDirectory: renderAgentDirectory(
         id,
         this.store
           .listAgents()
           .filter((mate) => mate.profile.id !== id && !mate.settings.hiddenFromSidebar)
+          .filter((mate) => runContext.kind !== "work" || mate.settings.workMembership?.binding?.workId === runContext.workId)
           // 按 createdAt 排序，让这一段在队友集合不变时逐字节相同。
           .sort((a, b) => a.profile.createdAt - b.profile.createdAt)
           .map((mate) => ({
@@ -725,7 +1313,11 @@ export class HostRuntime implements Partial<DelegateHost> {
     }
     const frozenIdentity = cache.profile?.identity;
     const notice = frozenIdentity ? profileDriftNotice(frozenIdentity, identity) : null;
-    return { text: render.text, notices: notice ? [notice] : [] };
+    const workPrompt = runContext.kind === "work" ? await this.renderWorkPrompt(runContext) : "";
+    return {
+      text: workPrompt ? `${render.text}\n\n${workPrompt}` : render.text,
+      notices: notice ? [notice] : []
+    };
   }
 
   private contextWindow(model: AgentSettings["model"]): number {
@@ -738,11 +1330,121 @@ export class HostRuntime implements Partial<DelegateHost> {
     return known[`${model.provider}:${model.model}`] ?? 128_000;
   }
 
-  private toolRoots(record: AgentRecord) {
+  private async renderWorkPrompt(context: Extract<RunContext, { kind: "work" }>): Promise<string> {
+    const work = this.workStore.getWork(context.workId);
+    const task = context.taskId ? await this.requireWorkTask(context.workId, context.taskId) : null;
+    const members = this.store.listAgents()
+      .filter((record) => record.settings.workMembership?.binding?.workId === context.workId)
+      .map((record) => `${record.profile.name} (${record.profile.id}) — ${record.settings.workMembership!.binding!.role}`);
+    const capabilityLines: string[] = [];
+    for (const entry of context.catalog.filter((candidate) => candidate.enabled)) {
+      if (entry.kind === "skill") {
+        let instructions = "";
+        try {
+          instructions = (await readFile(entry.manifestPath, "utf8")).slice(0, 20_000);
+        } catch {
+          instructions = `(Could not read ${entry.manifestPath})`;
+        }
+        capabilityLines.push(`### Skill: ${entry.name}\nSource: ${entry.manifestPath}\n${instructions}`);
+      } else if (entry.kind === "cli") {
+        capabilityLines.push(`### CLI: ${entry.name}\nCapability id: ${entry.id}\nExecutable: ${entry.executable}\nAllowed subcommands: ${entry.allowedSubcommands.join(", ") || "none; call without arguments"}\nUse RunWorkCLI; do not invoke it through a shell.`);
+      } else if (entry.kind === "knowledge") {
+        capabilityLines.push(`### Knowledge: ${entry.name}\nRead-only roots: ${entry.roots.join(", ")}`);
+      } else {
+        capabilityLines.push(`### Local tools: ${entry.name}\nEnabled tools: ${entry.toolNames.join(", ")}`);
+      }
+    }
+    return [
+      "## Current Work",
+      `Name: ${work.name}`,
+      `Goal: ${work.description || "(not specified)"}`,
+      `Project root: ${work.projectRoot ?? "(not set)"}`,
+      `Catalog revision: ${context.catalogRevision}`,
+      "",
+      "This run belongs to this Work. Work progress and handoff go to the shared room, not the private Agent chat.",
+      task ? [
+        "",
+        "### Assigned task",
+        `Task id: ${task.id}`,
+        `Title: ${task.title}`,
+        `Description: ${task.description || "(not specified)"}`,
+        `State: ${task.state}`,
+        `Acceptance criteria: ${task.acceptanceCriteria.join("; ") || "(not specified)"}`
+      ].join("\n") : "",
+      "",
+      "### Work members",
+      members.join("\n") || "(none)",
+      capabilityLines.length ? `\n## Work capabilities\n${capabilityLines.join("\n\n")}` : ""
+    ].filter(Boolean).join("\n");
+  }
+
+  private workTaskView(task: WorkTask): WorkTaskView {
+    return {
+      ...task,
+      allowedTransitions: allowedTaskTransitions(task.state, "user")
+    };
+  }
+
+  private async requireWorkTask(workId: string, taskId: string): Promise<WorkTask> {
+    this.workStore.requireWork(workId);
+    const task = projectWork(await this.workStore.readTimeline(workId)).tasks.find(
+      (candidate) => candidate.id === taskId
+    );
+    if (!task) throw new RpcError(HostErrorCode.WORK_NOT_FOUND, `Task ${taskId} not found`);
+    return task;
+  }
+
+  private assertTaskRevision(task: WorkTask, expectedRevision: number): void {
+    if (task.revision === expectedRevision) return;
+    throw new RpcError(
+      HostErrorCode.WORK_CONFLICT,
+      `Task revision is ${task.revision}, expected ${expectedRevision}`
+    );
+  }
+
+  private assertMembershipRevision(actual: number, expected: number): void {
+    if (actual === expected) return;
+    throw new RpcError(
+      HostErrorCode.WORK_CONFLICT,
+      `Membership revision is ${actual}, expected ${expected}`
+    );
+  }
+
+  private assertNotRunningWork(agentId: string, workId: string): void {
+    const runId = this.scheduler.activeRunFor(agentId);
+    if (!runId) return;
+    const context = this.scheduler.contextFor(runId);
+    if (context?.kind !== "work" || context.workId !== workId) return;
+    throw new RpcError(
+      HostErrorCode.AGENT_BUSY,
+      "Stop the Agent's current Work run before removing or moving it"
+    );
+  }
+
+  private async assertWorkAssignees(workId: string, agentIds: string[]): Promise<void> {
+    this.workStore.requireWork(workId);
+    for (const agentId of agentIds) {
+      const record = this.store.requireAgent(agentId);
+      if (record.settings.workMembership?.binding?.workId === workId) continue;
+      throw new RpcError(HostErrorCode.WORK_CONFLICT, `Agent ${agentId} is not a member of this Work`);
+    }
+  }
+
+  private assertWorkAgent(agentId: string, workId: string): AgentRecord {
+    const record = this.store.requireAgent(agentId);
+    if (record.settings.workMembership?.binding?.workId !== workId) {
+      throw new RpcError(HostErrorCode.WORK_FORBIDDEN, "Agent is no longer a member of this Work");
+    }
+    return record;
+  }
+
+  private toolRoots(record: AgentRecord, context: RunContext = DIRECT_RUN_CONTEXT) {
     const dataParent = path.dirname(this.options.dataDir);
     return {
       home: path.resolve(process.env.NUUM_LOCAL_EXEC_ROOT || homedir()),
-      project: record.settings.workspace?.projectRoot ?? null,
+      project: context.kind === "work"
+        ? this.workStore.getWork(context.workId).projectRoot
+        : record.settings.workspace?.projectRoot ?? null,
       scratch: this.store.scratchDir(record.profile.id),
       terminals: path.join(this.store.agentDir(record.profile.id), "terminals"),
       denied: [
@@ -750,7 +1452,12 @@ export class HostRuntime implements Partial<DelegateHost> {
         path.join(this.options.dataDir, "host-secrets.json"),
         path.join(this.options.dataDir, "credentials.json"),
         path.join(this.options.dataDir, "secrets.json")
-      ]
+      ],
+      readOnly: context.kind === "work"
+        ? context.catalog
+            .filter((entry) => entry.kind === "knowledge" && entry.enabled)
+            .flatMap((entry) => entry.kind === "knowledge" ? entry.roots : [])
+        : []
     };
   }
 
@@ -938,7 +1645,7 @@ export class HostRuntime implements Partial<DelegateHost> {
     if (this.scheduler.isBusy(agentId)) return;
     const next = this.wakes.dequeue(agentId);
     if (!next) return;
-    this.launch(agentId, "agent");
+    this.launch(agentId, DIRECT_RUN_CONTEXT);
     const record = this.store.getAgent(agentId);
     if (record) this.emit(HostEvents.agentUpdated, { agent: await this.viewFor(record) });
   }
@@ -954,7 +1661,7 @@ export class HostRuntime implements Partial<DelegateHost> {
       const wake = pendingWake(entries);
       if (!wake) continue;
       if (this.scheduler.isBusy(id)) this.wakes.enqueue(id, wake);
-      else this.launch(id, "agent");
+      else this.launch(id, DIRECT_RUN_CONTEXT);
     }
   }
 
@@ -980,17 +1687,25 @@ export class HostRuntime implements Partial<DelegateHost> {
     const name = String(params.name ?? "");
     const toolCallId = String(params.toolCallId ?? "");
     const tool = this.delegated.get(name);
+    const runContext = this.scheduler.contextFor(runId);
     let ok = true;
     let output: string;
-    if (!tool) {
+    if (!runContext) {
+      ok = false;
+      output = `Run ${runId} has already ended.`;
+    } else if (!tool) {
       ok = false;
       output = `Unknown delegated tool: ${name}`;
+    } else if (!isDelegatedToolAvailable(tool, runContext)) {
+      ok = false;
+      output = `${name} is not available in a ${runContext.kind} run.`;
     } else {
       try {
         output = await tool.execute((params.arguments ?? {}) as Record<string, unknown>, {
           agentId,
           assistantId,
-          toolCallId
+          toolCallId,
+          runContext
         });
       } catch (error) {
         ok = false;
@@ -1125,6 +1840,55 @@ export class HostRuntime implements Partial<DelegateHost> {
     if (!record) return;
     this.emit(HostEvents.agentUpdated, { agent: await this.viewFor(record) });
   }
+}
+
+function currentMembership(record: AgentRecord): NonNullable<AgentSettings["workMembership"]> {
+  return record.settings.workMembership ?? { revision: 0, binding: null };
+}
+
+function grantsForRole(role: WorkRole) {
+  if (role === "coordinator") {
+    return {
+      canPost: true,
+      canManageOwnTasks: true,
+      canAssignTasks: true,
+      canEditCatalog: true
+    };
+  }
+  if (role === "worker") {
+    return {
+      canPost: true,
+      canManageOwnTasks: true,
+      canAssignTasks: false,
+      canEditCatalog: false
+    };
+  }
+  return {
+    canPost: false,
+    canManageOwnTasks: false,
+    canAssignTasks: false,
+    canEditCatalog: false
+  };
+}
+
+function requireWorkRun(context: RunContext): Extract<RunContext, { kind: "work" }> {
+  if (context.kind !== "work") {
+    throw new RpcError(HostErrorCode.WORK_FORBIDDEN, "This tool is only available during a Work run");
+  }
+  return context;
+}
+
+function renderWorkEventForAgent(event: WorkEvent): string {
+  if (event.type === "chat.posted") return `[${event.actor.kind}:${event.actor.id}] ${event.body}`;
+  if (event.type === "task.created") return `[task] Created ${event.task.id}: ${event.task.title}`;
+  if (event.type === "task.assigned") return `[task] ${event.taskId} assigned to ${event.assigneeIds.join(", ") || "nobody"}`;
+  if (event.type === "task.transitioned") return `[task] ${event.taskId}: ${event.from} -> ${event.to}`;
+  if (event.type === "task.progressed") return `[task] ${event.taskId}: ${event.summary}`;
+  if (event.type === "task.handed_off") return `[handoff] ${event.taskId} -> ${event.nextStatus}: ${event.summary}`;
+  if (event.type === "dispatch.requested") return `[dispatch] ${event.agentId}: ${event.instruction}`;
+  if (event.type === "member.attached") return `[member] ${event.agentId} joined as ${event.role}`;
+  if (event.type === "member.detached") return `[member] ${event.agentId} left`;
+  return `[dispatch] ${event.agentId} acknowledged`;
 }
 
 /**

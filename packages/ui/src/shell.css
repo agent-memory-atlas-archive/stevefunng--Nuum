@@ -64,6 +64,7 @@ textarea, input, .sand-message-prose { user-select: text; }
 }
 .sand-agents-sidebar.is-collapsed { width: 64px; }
 .sand-workspace {
+  position: relative;
   display: flex;
   flex: 1 1 0;
   min-width: 0;

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { WorkMembership } from "./work.js";
 
 export const ProviderId = z.enum(["openai", "anthropic", "deepseek"]);
 export type ProviderId = z.infer<typeof ProviderId>;
@@ -91,7 +92,8 @@ export const AgentSettings = z.object({
     /** null 跟随全局默认。 */
     toolPermission: ToolPermission.nullable()
   }).optional(),
-  hiddenFromSidebar: z.boolean().optional()
+  hiddenFromSidebar: z.boolean().optional(),
+  workMembership: WorkMembership.optional()
 });
 export type AgentSettings = z.infer<typeof AgentSettings>;
 
