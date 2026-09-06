@@ -17,3 +17,9 @@ export {
 } from "./conversation/sidebar-resize";
 export { SandButton, SandIcon, SandIconButton } from "./kit/sand-kit-primitives";
 export { Bzn, createRuntimeThemeInstaller, type RuntimeThemeMode } from "./theme/runtime-theme-token-installer";
+
+export { AgentProfilePanel } from "./conversation/agent-profile-panel";
+
+export { t, getLanguage, setLanguage, useLanguage } from "./i18n";
+
+export { SettingsSelect } from "./kit/settings-select";

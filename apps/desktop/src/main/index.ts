@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from "electron";
+import { app, BrowserWindow, dialog, Menu, ipcMain, safeStorage, shell } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -24,6 +24,42 @@ mkdirSync(dataDir, { recursive: true });
 let host: ChildProcessWithoutNullStreams | null = null;
 let peer: JsonRpcPeer | null = null;
 let window: BrowserWindow | null = null;
+
+let interfaceLanguage = "zh-CN";
+function installMenu(language: string): void {
+  interfaceLanguage = language;
+  const label = (zh: string, en: string) => language === "en" ? en : zh;
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    { label: "Nuum", submenu: [
+      { role: "about", label: label("关于 Nuum", "About Nuum") },
+      { type: "separator" },
+      { role: "hide", label: label("隐藏 Nuum", "Hide Nuum") },
+      { role: "hideOthers", label: label("隐藏其他应用", "Hide Others") },
+      { role: "unhide", label: label("显示全部", "Show All") },
+      { type: "separator" },
+      { role: "quit", label: label("退出 Nuum", "Quit Nuum") }
+    ] },
+    { label: label("文件", "File"), submenu: [{ role: "close", label: label("关闭窗口", "Close Window") }] },
+    { label: label("编辑", "Edit"), submenu: [
+      { role: "undo", label: label("撤销", "Undo") }, { role: "redo", label: label("重做", "Redo") },
+      { type: "separator" },
+      { role: "cut", label: label("剪切", "Cut") }, { role: "copy", label: label("复制", "Copy") },
+      { role: "paste", label: label("粘贴", "Paste") }, { role: "selectAll", label: label("全选", "Select All") }
+    ] },
+    { label: label("显示", "View"), submenu: [
+      { role: "reload", label: label("重新加载", "Reload") },
+      { role: "toggleDevTools", label: label("开发者工具", "Developer Tools") },
+      { type: "separator" },
+      { role: "resetZoom", label: label("实际大小", "Actual Size") },
+      { role: "zoomIn", label: label("放大", "Zoom In") }, { role: "zoomOut", label: label("缩小", "Zoom Out") },
+      { role: "togglefullscreen", label: label("切换全屏", "Toggle Full Screen") }
+    ] },
+    { label: label("窗口", "Window"), submenu: [
+      { role: "minimize", label: label("最小化", "Minimize") }, { role: "zoom", label: label("缩放", "Zoom") },
+      { role: "front", label: label("前置全部窗口", "Bring All to Front") }
+    ] }
+  ]));
+}
 
 function sendToRenderer(method: string, params: unknown): void {
   if (!window || window.isDestroyed()) return;
@@ -81,8 +117,10 @@ function createWindow(): void {
   window = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 800,
+    minHeight: 560,
     titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 14 },
+    trafficLightPosition: { x: 16, y: 15 },
     backgroundColor: "#111111",
     webPreferences: {
       preload: path.join(here, "../preload/index.mjs"),
@@ -112,13 +150,20 @@ app.whenReady().then(async () => {
       deepseekApiKey: secrets.deepseekApiKey
     });
   }
+  const preferences = await hostPeer.request("settings.get") as { language?: string };
+  installMenu(preferences.language ?? "zh-CN");
   createWindow();
 });
 
 ipcMain.handle("host:request", async (_event, method: string, params: unknown) => {
   if (!peer) throw new Error("Host is not running");
   try {
-    return await peer.request(method, params);
+    const result = await peer.request(method, params);
+    if (method === "settings.set") {
+      const language = (result as { language?: string }).language;
+      if (language === "en" || language === "zh-CN") installMenu(language);
+    }
+    return result;
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : String(error));
   }
@@ -137,7 +182,7 @@ ipcMain.handle(DesktopMethods.windowGetState, () => ({
 }));
 ipcMain.handle(DesktopMethods.themeGet, () => ({ theme: "system" }));
 ipcMain.handle(DesktopMethods.workspacePick, async () => {
-  const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+  const result = await dialog.showOpenDialog({ title: interfaceLanguage === "en" ? "Choose a folder" : "选择文件夹", buttonLabel: interfaceLanguage === "en" ? "Choose" : "选择", properties: ["openDirectory"] });
   return result.canceled ? null : result.filePaths[0] ?? null;
 });
 ipcMain.handle(DesktopMethods.secretsGet, () => readSecrets());

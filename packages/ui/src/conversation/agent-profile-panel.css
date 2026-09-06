@@ -1,0 +1,15 @@
+.sand-agent-profile-panel { display: flex; flex-direction: column; flex: 0 0 clamp(264px, 27vw, 340px); min-width: 0; min-height: 0; background: var(--nuum-bg-editor); border-left: 1px solid var(--nuum-stroke-tertiary); animation: sand-profile-enter 180ms ease-out; }
+.sand-agent-profile-panel > header { display: flex; align-items: center; justify-content: space-between; flex: 0 0 44px; padding: 0 16px 0 22px; border-bottom: 1px solid var(--nuum-stroke-tertiary); font-size: 13px; font-weight: 550; -webkit-app-region: drag; }
+.sand-agent-profile-panel__body { display: grid; align-content: start; gap: 22px; overflow-y: auto; min-height: 0; padding: 30px 22px; }
+.sand-agent-profile-panel__avatar { display: flex; justify-content: center; padding: 10px 0 20px; }
+.sand-profile-field { position: relative; display: grid; gap: 8px; min-width: 0; }
+.sand-profile-field > span { color: var(--nuum-text-secondary); font-size: 12px; }
+.sand-profile-field input, .sand-profile-field textarea { box-sizing: border-box; width: 100%; padding: 10px 12px; color: var(--nuum-text-primary); background: transparent; border: 1px solid var(--nuum-stroke-secondary); border-radius: 9px; font: inherit; font-size: 13px; line-height: 1.5; transition: border-color 150ms ease; }
+
+.sand-profile-field input:focus, .sand-profile-field textarea:focus { outline: none; border-color: var(--nuum-text-tertiary); }
+.sand-profile-field small { color: var(--nuum-text-red-primary); font-size: 10px; }
+.sand-profile-field .sand-profile-field__status { position: absolute; top: 1px; right: 0; color: var(--nuum-text-tertiary); }
+.sand-profile-field small button { color: inherit; background: transparent; border: 0; font: inherit; text-decoration: underline; cursor: pointer; }
+.sand-agent-profile-panel + * { min-width: 0; }
+@keyframes sand-profile-enter { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce) { .sand-agent-profile-panel { animation: none; } .sand-profile-field input, .sand-profile-field textarea { transition: none; } }

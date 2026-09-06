@@ -6,6 +6,7 @@
 export interface AgentIdentity {
   name: string;
   description: string;
+  tags?: string[];
 }
 
 export interface PromptPaths {
@@ -131,7 +132,7 @@ export function renderSystemPrompt(input: SystemPromptInput): SystemPromptRender
  */
 export function renderAgentDirectory(
   self: string,
-  teammates: readonly { id: string; name: string; description: string }[],
+  teammates: readonly { id: string; name: string; description: string; tags?: string[] }[],
   agentsRoot: string
 ): string {
   const lines = ["## Your teammates", ""];
@@ -144,6 +145,7 @@ export function renderAgentDirectory(
   } else {
     for (const mate of teammates) {
       lines.push(`- ${mate.name} (id ${mate.id})${mate.description ? ` — ${mate.description}` : ""}`);
+      if (mate.tags?.length) lines.push(`  Tags: ${mate.tags.join(", ")}`);
     }
     lines.push(
       "",
@@ -166,13 +168,14 @@ export function renderAgentDirectory(
 }
 
 export function profileDriftNotice(frozen: AgentIdentity, live: AgentIdentity): string | null {
-  if (frozen.name === live.name && frozen.description === live.description) return null;
+  if (frozen.name === live.name && frozen.description === live.description && JSON.stringify(frozen.tags ?? []) === JSON.stringify(live.tags ?? [])) return null;
   return [
     "<agent_profile_update>",
     "Your agent profile changed. The Agent profile section above is a frozen",
     "snapshot and still shows the old values; these are the current ones.",
     `Current name: ${live.name || "(no name)"}`,
     `Current description: ${live.description || "(no description)"}`,
+    `Current tags: ${live.tags?.join(", ") || "(no tags)"}`,
     "Use this identity until a future conversation summary folds it into that",
     "section.",
     "</agent_profile_update>"
@@ -198,14 +201,15 @@ function renderProfile(identity: AgentIdentity, paths: PromptPaths): string {
     lines.push(`Your agent name is "${name}". If the user asks for your name, answer with "${name}".`);
   }
   if (description.length > 0) lines.push(`Description: ${description}`);
+  if (identity.tags?.length) lines.push(`Tags: ${identity.tags.join(", ")}`);
   lines.push("");
   // 插了变长路径的句子不预先折行 —— 路径一长，硬换行的位置就会断得莫名其妙。
   lines.push(
-    `Your profile is a JSON config file with "name" and "description" fields at ${paths.profile}`,
+    `Your profile is a JSON config file with "name", "tags" and "description" fields at ${paths.profile}`,
     `Your per-agent settings are at ${paths.settings}`,
     "Both are readable with your file tools.",
     "",
-    "Rewrite your own name or description with update_state target=profile when",
+    "Rewrite your own name, tags or description with update_state target=profile when",
     "the user asks you to become something else, or when what you actually do",
     "has drifted from what your description claims. Do not edit those files by",
     "hand — the app is their only writer."

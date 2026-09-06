@@ -127,7 +127,7 @@ export const TranscriptEvent = z.discriminatedUnion("type", [
     id: z.string(),
     seq: z.number().int(),
     createdAt: z.number(),
-    patch: z.object({ name: z.string().optional(), description: z.string().optional() })
+    patch: z.object({ name: z.string().optional(), description: z.string().optional(), tags: z.array(z.string()).optional() })
   })
 ]);
 export type TranscriptEvent = z.infer<typeof TranscriptEvent>;
@@ -471,9 +471,10 @@ export function describeWake(event: Extract<TranscriptEvent, { type: "wake" }>):
   return `Routine ${event.source.routineName}: ${event.text}`;
 }
 
-function describeProfilePatch(patch: { name?: string; description?: string }): string {
+function describeProfilePatch(patch: { name?: string; description?: string; tags?: string[] }): string {
   const parts: string[] = [];
   if (patch.name !== undefined) parts.push(`name to "${patch.name}"`);
   if (patch.description !== undefined) parts.push("its description");
+  if (patch.tags !== undefined) parts.push("its tags");
   return parts.length > 0 ? `This agent changed ${parts.join(" and ")}.` : "This agent changed its profile.";
 }

@@ -218,7 +218,9 @@ export class HostRuntime implements Partial<DelegateHost> {
       ...this.settings,
       defaultToolPermission: patch.defaultToolPermission ?? this.settings.defaultToolPermission,
       defaultModel: resolveAvailableModel(this.store.secrets, requestedModel) ?? requestedModel,
-      theme: patch.theme ?? this.settings.theme
+      theme: patch.theme ?? this.settings.theme,
+      language: patch.language ?? this.settings.language ?? "zh-CN",
+      ...(patch.sidebar !== undefined ? { sidebar: patch.sidebar } : {})
     };
     await this.store.writeSettings(this.settings);
     return this.getPublicSettings();
@@ -240,6 +242,7 @@ export class HostRuntime implements Partial<DelegateHost> {
         id: crypto.randomUUID(),
         name: params.name?.trim() || DEFAULT_AGENT_NAME,
         description: params.description?.trim() ?? "",
+        ...(params.tags !== undefined ? { tags: params.tags } : {}),
         ...(params.avatarColor ? { avatarColor: params.avatarColor } : {}),
         ...(params.avatarShape ? { avatarShape: params.avatarShape } : {}),
         createdAt: now
@@ -273,6 +276,7 @@ export class HostRuntime implements Partial<DelegateHost> {
     const profile: Record<string, unknown> = {};
     if (params.name !== undefined) profile.name = params.name;
     if (params.description !== undefined) profile.description = params.description;
+    if (params.tags !== undefined) profile.tags = params.tags;
     if (params.avatarColor !== undefined) profile.avatarColor = params.avatarColor;
     if (params.avatarShape !== undefined) profile.avatarShape = params.avatarShape;
     const settings: Record<string, unknown> = {};
@@ -1041,10 +1045,11 @@ export class HostRuntime implements Partial<DelegateHost> {
    */
   async updateState(agentId: string, params: UpdateStateParams): Promise<string> {
     if (params.target === "profile") {
-      const patch: { name?: string; description?: string } = {};
+      const patch: { name?: string; description?: string; tags?: string[] } = {};
       if (params.name !== undefined) patch.name = params.name.trim();
       if (params.description !== undefined) patch.description = params.description.trim();
-      if (Object.keys(patch).length === 0) return "Nothing to change: pass name or description.";
+      if (params.tags !== undefined) patch.tags = params.tags;
+      if (Object.keys(patch).length === 0) return "Nothing to change: pass name, tags or description.";
       const record = await this.store.updateAgent(agentId, { profile: patch });
       const event = await this.store.appendEvent(agentId, {
         type: "profile",
@@ -1120,10 +1125,11 @@ export class HostRuntime implements Partial<DelegateHost> {
     }
     const target = this.store.getAgent(params.agent_id);
     if (!target) return `No agent with id ${params.agent_id}.`;
-    const patch: { name?: string; description?: string } = {};
+    const patch: { name?: string; description?: string; tags?: string[] } = {};
     if (params.name !== undefined) patch.name = params.name.trim();
     if (params.description !== undefined) patch.description = params.description.trim();
-    if (Object.keys(patch).length === 0) return "Nothing to change: pass name or description.";
+    if (params.tags !== undefined) patch.tags = params.tags;
+    if (Object.keys(patch).length === 0) return "Nothing to change: pass name, tags or description.";
     const record = await this.store.updateAgent(params.agent_id, { profile: patch });
     const event = await this.store.appendEvent(params.agent_id, {
       type: "profile",
@@ -1249,7 +1255,8 @@ export class HostRuntime implements Partial<DelegateHost> {
 
     const identity: AgentIdentity = {
       name: record.profile.name,
-      description: record.profile.description
+      description: record.profile.description,
+      tags: record.profile.tags
     };
     const cache = await this.store.readPromptCache(id);
     const agentDir = this.store.agentDir(id);
@@ -1297,7 +1304,8 @@ export class HostRuntime implements Partial<DelegateHost> {
           .map((mate) => ({
             id: mate.profile.id,
             name: mate.profile.name,
-            description: mate.profile.description
+            description: mate.profile.description,
+            tags: mate.profile.tags
           })),
         path.join(this.options.dataDir, "agents")
       ),

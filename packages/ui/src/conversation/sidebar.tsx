@@ -1,17 +1,25 @@
-import type { AgentView, WorkProfile } from "@nuum/protocol";
-import { useMemo, useRef, useState } from "react";
+import { t } from "../i18n";
+import type { AgentView, WorkProfile, SidebarOrganization } from "@nuum/protocol";
+import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { SandIcon, SandIconButton } from "../kit/sand-kit-primitives";
+import { useAgentDrag } from "../workbar/agent-drag";
+import { EMPTY_SIDEBAR, UNASSIGNED_SECTION, PINNED_SECTION, assignSidebarAgent, projectSidebarAgents, toggleSidebarPin, removeSidebarSection, reorderSidebarPin } from "./sidebar-organization";
+import { SidebarMenu, SidebarNameDialog, type SidebarMenuItem } from "./sidebar-menu";
+import "./sidebar-organization.css";
 import { AgentAvatar } from "./agent-avatar";
 import {
   SidebarResizeHandle,
   applySidebarDrag,
-  projectSidebarWidth,
+  projectResponsiveSidebar,
   settleSidebarLayout,
   type SidebarLayoutState
 } from "./sidebar-resize";
 
 export interface ConversationSidebarProps {
   agents: readonly AgentView[];
+  organization?: SidebarOrganization;
+  onOrganizationChange(next: SidebarOrganization): Promise<void>;
+  onEditAgent(id: string): void;
   works: readonly WorkProfile[];
   activeId: string | null;
   activeWorkId: string | null;
@@ -22,17 +30,16 @@ export interface ConversationSidebarProps {
   onOpen(id: string): void;
   onOpenWork(id: string): void;
   onMoveAgentToWork(agentId: string, workId: string): void;
-  onDetachAgent(agentId: string): void;
   onOpenSettings(): void;
 }
 
 function relativeTime(updatedAt: number): string {
   const seconds = Math.max(0, Math.round((Date.now() - updatedAt) / 1000));
-  if (seconds < 60) return "now";
+  if (seconds < 60) return t("now");
   const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m`;
+  if (minutes < 60) return t("{count}m", { count: minutes });
   const hours = Math.round(minutes / 60);
-  return hours < 24 ? `${hours}h` : `${Math.round(hours / 24)}d`;
+  return hours < 24 ? t("{count}h", { count: hours }) : t("{count}d", { count: Math.round(hours / 24) });
 }
 
 export function agentAccent(id: string): string {
@@ -44,6 +51,9 @@ export function agentAccent(id: string): string {
 
 export function ConversationSidebar({
   agents,
+  organization = EMPTY_SIDEBAR,
+  onOrganizationChange,
+  onEditAgent,
   works,
   activeId,
   activeWorkId,
@@ -54,13 +64,43 @@ export function ConversationSidebar({
   onOpen,
   onOpenWork,
   onMoveAgentToWork,
-  onDetachAgent,
   onOpenSettings
 }: ConversationSidebarProps) {
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [menu, setMenu] = useState<{ point: { x: number; y: number }; agentId?: string; sectionId?: string; view?: "groups" } | null>(null);
+  const [groupDialog, setGroupDialog] = useState<{ sectionId?: string; agentId?: string; name: string } | null>(null);
+  const menuOrigin = useRef<HTMLElement | null>(null);
+  const closeMenu = () => { setMenu(null); menuOrigin.current?.focus({ preventScroll: true }); };
+  const commit = async (next: SidebarOrganization) => {
+    if (busy) return false;
+    setBusy(true); setNotice("");
+    try { await onOrganizationChange(next); return true; }
+    catch { setNotice(t("Could not save sidebar changes. Please try again.")); return false; }
+    finally { setBusy(false); }
+  };
+  const agentDrag = useAgentDrag(({ agentId, workId, sectionId, beforePinnedId }) => {
+    if (workId) { onMoveAgentToWork(agentId, workId); return; }
+    if (beforePinnedId) { void commit(reorderSidebarPin(organization, agentId, beforePinnedId)); return; }
+    if (sectionId) void commit(assignSidebarAgent(organization, agentId, sectionId));
+  }, { holdToDrag: true });
+  const showMenu = (event: MouseEvent<HTMLElement>, target: { agentId?: string; sectionId?: string }) => {
+    event.preventDefault(); event.stopPropagation();
+    menuOrigin.current = event.currentTarget;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setMenu({ ...target, point: { x: event.clientX || rect.left + 20, y: event.clientY || rect.bottom } });
+  };
   const [query, setQuery] = useState("");
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
-  const collapsed = layout.isCollapsed;
+  const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
+  useEffect(() => {
+    const resize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", resize);
+    return () => window.removeEventListener("resize", resize);
+  }, []);
+  const effectiveLayout = projectResponsiveSidebar(layout, viewportWidth);
+  const collapsed = effectiveLayout.isCollapsed;
   const visible = useMemo(() => {
     const listed = agents.filter((agent) => !agent.settings.hiddenFromSidebar);
     const needle = query.trim().toLowerCase();
@@ -68,33 +108,86 @@ export function ConversationSidebar({
     return listed.filter((agent) => {
       return (
         agent.profile.name.toLowerCase().includes(needle) ||
-        agent.profile.description.toLowerCase().includes(needle)
+        agent.profile.description.toLowerCase().includes(needle) ||
+        agent.profile.tags?.some((tag) => tag.toLowerCase().includes(needle))
       );
     });
   }, [query, agents]);
 
+  const projection = projectSidebarAgents(visible, organization);
+  const section = organization.sections.find((item) => item.id === menu?.sectionId);
+  const select = (action: () => void) => () => { closeMenu(); action(); };
+  let items: SidebarMenuItem[] = [];
+  if (menu?.agentId) {
+    const id = menu.agentId;
+    items = menu.view === "groups" ? [
+      { label: t("Back"), icon: "chevron-left", onSelect: () => setMenu({ ...menu, view: undefined }) },
+      ...organization.sections.map((group) => ({ label: group.name, icon: "folder" as const, disabled: busy, onSelect: select(() => void commit(assignSidebarAgent(organization, id, group.id))) })),
+      { label: t("Unassigned"), icon: "sidebar", disabled: busy, onSelect: select(() => void commit(assignSidebarAgent(organization, id, UNASSIGNED_SECTION))) },
+      { label: t("New group…"), icon: "plus", separator: true, disabled: busy, onSelect: select(() => { setNotice(""); setGroupDialog({ agentId: id, name: "" }); }) }
+    ] : [
+      { label: organization.pinnedAgentIds.includes(id) ? t("Unpin") : t("Pin"), icon: "pin", disabled: busy, onSelect: select(() => void commit(toggleSidebarPin(organization, id))) },
+      { label: organization.sections.length ? t("Move to group…") : t("Move to new group…"), icon: "folder", disabled: busy, onSelect: () => {
+        if (organization.sections.length) setMenu({ ...menu, view: "groups" });
+        else { closeMenu(); setNotice(""); setGroupDialog({ agentId: id, name: "" }); }
+      } },
+      { label: t("Edit profile…"), icon: "edit", separator: true, onSelect: select(() => onEditAgent(id)) },
+      { label: t("Copy Agent ID"), icon: "copy", onSelect: select(() => {
+        void navigator.clipboard.writeText(id).catch(() => setNotice(t("Could not copy Agent ID.")));
+      }) }
+    ];
+  } else if (section) {
+    const index = organization.sections.indexOf(section);
+    const move = (offset: number) => {
+      const sections = [...organization.sections];
+      [sections[index], sections[index + offset]] = [sections[index + offset], sections[index]];
+      void commit({ ...organization, sections });
+    };
+    items = [
+      { label: t("Rename group…"), icon: "edit", disabled: busy, onSelect: select(() => { setNotice(""); setGroupDialog({ sectionId: section.id, name: section.name }); }) },
+      { label: t("Move up"), icon: "arrow-up", disabled: busy || index === 0, onSelect: select(() => move(-1)) },
+      { label: t("Move down"), icon: "arrow-down", disabled: busy || index === organization.sections.length - 1, onSelect: select(() => move(1)) },
+      { label: t("Ungroup agents"), icon: "ungroup", separator: true, disabled: busy, onSelect: select(() => void commit(removeSidebarSection(organization, section.id))) }
+    ];
+  }
+  const renderAgent = ({ profile, runtime }: AgentView, pinned = false) => <button
+    className={["sand-agent-item", pinned ? "is-pinned" : ""].filter(Boolean).join(" ")}
+    data-active={profile.id === activeId || undefined} data-agent-drop-pin-before={pinned ? profile.id : undefined}
+    onPointerDown={(event) => { if (!busy) agentDrag.start(event, profile.id); }} onClickCapture={agentDrag.onClickCapture}
+    onContextMenu={(event) => showMenu(event, { agentId: profile.id })} aria-haspopup="menu"
+    key={profile.id} onDragStart={(event) => event.preventDefault()} onClick={() => onOpen(profile.id)} title={profile.name} type="button">
+    <span className="sand-agent-item__avatar"><AgentAvatar agentId={profile.id} color={profile.avatarColor} shape={profile.avatarShape}
+      size={collapsed ? 40 : pinned ? 52 : 34} state={runtime.status === "running" ? "working" : "idle"} />
+      {runtime.status === "running" ? <span className="sand-status-dot" /> : null}
+    </span>
+    <span className="sand-agent-item__body"><span className="sand-agent-item__name">{profile.name}</span>
+      <span className="sand-agent-item__preview">{profile.description || t("New Agent")}</span></span>
+    <span className="sand-agent-item__trailing"><span>{relativeTime(runtime.lastActivityAt)}</span>
+      {runtime.status === "running" ? <span className="sand-agent-item__activity">{t("Working")}</span> : null}</span>
+  </button>;
+
   return (
     <aside
-      aria-label="Agents"
+      aria-label={t("Agents")}
       className={[
         "sand-agents-sidebar",
         collapsed ? "is-collapsed" : "",
         layout.isDragging ? "is-resizing" : ""
       ].filter(Boolean).join(" ")}
       data-sidebar-collapsed={collapsed || undefined}
-      style={{ width: projectSidebarWidth(layout) }}
+      style={{ width: effectiveLayout.width }}
     >
       <header className="sand-agents-sidebar__header">
         {collapsed ? null : (
           <div className="sand-agents-sidebar__new-actions">
             <SandIconButton
-              aria-label="New"
+              aria-label={t("New")}
               className="sand-agents-sidebar__new"
               icon="plus"
-              label="New"
+              label={t("New")}
               onClick={onNewAgent}
               size="sm"
-              title="New agent"
+              title={t("New agent")}
             />
           </div>
         )}
@@ -104,91 +197,50 @@ export function ConversationSidebar({
           <SandIcon name="search" size="sm" />
           <input
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search"
+            placeholder={t("Search")}
             type="search"
             value={query}
           />
         </label>
       )}
-      <nav aria-label="Agent list" className="sand-agents-list" data-sidebar-collapsed={collapsed || undefined}>
-        {!collapsed && visible.length > 0 ? (
-          <div
-            className="sand-agents-list__label"
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={(event) => {
-              event.preventDefault();
-              const agentId = event.dataTransfer.getData("application/x-nuum-agent-id");
-              if (agentId) onDetachAgent(agentId);
-            }}
-            title="Drop a Work Agent here to remove it from its Work"
-          >
-            <span>Agents</span>
-            <span>{visible.length}</span>
-          </div>
-        ) : null}
-        {visible.length === 0 ? (
-          <div className="sand-agents-section__empty">{agents.length === 0 ? "No agents yet" : "No matching agents"}</div>
-        ) : (
-          <div className="sand-agents-section__rows">
-            {visible.map(({ profile, runtime }) => (
-              <button
-                className="sand-agent-item"
-                data-active={profile.id === activeId || undefined}
-                draggable
-                key={profile.id}
-                onDragStart={(event) => {
-                  event.dataTransfer.effectAllowed = "move";
-                  event.dataTransfer.setData("application/x-nuum-agent-id", profile.id);
-                }}
-                onClick={() => onOpen(profile.id)}
-                title={profile.name}
-                type="button"
-              >
-                <span className="sand-agent-item__avatar">
-                  <AgentAvatar
-                    agentId={profile.id}
-                    color={profile.avatarColor}
-                    shape={profile.avatarShape}
-                    size={34}
-                    state={runtime.status === "running" ? "working" : "idle"}
-                  />
-                  {runtime.status === "running" ? <span className="sand-status-dot" /> : null}
-                </span>
-                <span className="sand-agent-item__body">
-                  <span className="sand-agent-item__name">{profile.name}</span>
-                  <span className="sand-agent-item__preview">{profile.description || "New Agent"}</span>
-                </span>
-                <span className="sand-agent-item__trailing">
-                  <span>{relativeTime(runtime.lastActivityAt)}</span>
-                  {runtime.status === "running" ? <span className="sand-agent-item__activity">Working</span> : null}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+      <div className="sand-sidebar-pin-drop" data-agent-drop-section={PINNED_SECTION} aria-label={t("拖到此处置顶")} title={t("拖到此处置顶")}>
+        <span>{t("拖到此处置顶")}</span>
+      </div>
+      <nav aria-label={t("Agent list")} className="sand-agents-list" data-sidebar-collapsed={collapsed || undefined}>
+        {projection.pinned.length > 0 ? <div className="sand-agents-pinned" aria-label={t("Pinned Agents")} data-agent-drop-section={PINNED_SECTION}>
+          {projection.pinned.map((agent) => renderAgent(agent, true))}
+        </div> : null}
+        {projection.sections.filter((group) => !query.trim() || group.agents.length > 0).map((group) => <section className="sand-sidebar-group" key={group.id} data-agent-drop-section={group.id}>
+          {!collapsed ? <div className="sand-sidebar-group__heading" onContextMenu={(event) => showMenu(event, { sectionId: group.id })}>
+            <button type="button" aria-expanded={!group.isCollapsed || !!query.trim()} disabled={busy} onClick={() => void commit({ ...organization, sections: organization.sections.map((item) => item.id === group.id ? { ...item, isCollapsed: !item.isCollapsed } : item) })}>
+              <SandIcon name="chevron-right" size={10} /><span>{group.name}</span><small>{group.agents.length}</small>
+            </button>
+            <button className="sand-sidebar-group__more" type="button" aria-label={t("Actions for {name}", { name: group.name })} onClick={(event) => showMenu(event, { sectionId: group.id })}>···</button>
+          </div> : null}
+          {collapsed || !group.isCollapsed || !!query.trim() ? <div className="sand-agents-section__rows">{group.agents.map((agent) => renderAgent(agent))}
+            {!group.agents.length && !collapsed ? <div className="sand-agents-section__empty">{t("Drag an Agent here")}</div> : null}</div> : null}
+        </section>)}
+        <section className="sand-sidebar-group" data-agent-drop-section={UNASSIGNED_SECTION}>
+          {!collapsed && projection.unassigned.length > 0 ? <div className="sand-agents-list__label"><span>{organization.sections.length ? t("Unassigned") : t("Agents")}</span><span>{projection.unassigned.length}</span></div> : null}
+          <div className="sand-agents-section__rows">{projection.unassigned.map((agent) => renderAgent(agent))}</div>
+        </section>
+        {visible.length === 0 ? <div className="sand-agents-section__empty">{agents.length === 0 ? t("No agents yet") : t("No matching agents")}</div> : null}
+        {notice && !groupDialog ? <p className="sand-sidebar-notice" role="alert">{t(notice)}</p> : null}
         <div className="sand-work-section">
           {!collapsed ? (
             <div className="sand-agents-list__label sand-work-section__label">
-              <span>Work Bar</span>
+              <span>{t("Work Bar")}</span>
               <span>{works.length}</span>
-              <button aria-label="New Work" onClick={onNewWork} title="New Work" type="button">+</button>
+              <button aria-label={t("New Work")} onClick={onNewWork} title={t("New Work")} type="button">+</button>
             </div>
           ) : null}
           <div className="sand-agents-section__rows">
             {works.map((work) => (
               <button
                 className="sand-work-item"
+                data-agent-drop-work={work.id}
                 data-active={work.id === activeWorkId || undefined}
                 key={work.id}
-                onDragOver={(event) => {
-                  event.preventDefault();
-                  event.dataTransfer.dropEffect = "move";
-                }}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  const agentId = event.dataTransfer.getData("application/x-nuum-agent-id");
-                  if (agentId) onMoveAgentToWork(agentId, work.id);
-                }}
                 onClick={() => onOpenWork(work.id)}
                 title={work.name}
                 type="button"
@@ -196,12 +248,12 @@ export function ConversationSidebar({
                 <span className="sand-work-item__mark">{work.name.slice(0, 1).toUpperCase()}</span>
                 <span className="sand-work-item__body">
                   <span>{work.name}</span>
-                  <small>{work.description || "New Work"}</small>
+                  <small>{work.description || t("New Work")}</small>
                 </span>
               </button>
             ))}
             {collapsed ? (
-              <button aria-label="New Work" className="sand-work-item sand-work-item--new" onClick={onNewWork} title="New Work" type="button">
+              <button aria-label={t("New Work")} className="sand-work-item sand-work-item--new" onClick={onNewWork} title={t("New Work")} type="button">
                 <span className="sand-work-item__mark">+</span>
               </button>
             ) : null}
@@ -211,26 +263,36 @@ export function ConversationSidebar({
       <footer className="sand-agents-sidebar__footer">
         {collapsed ? (
           <SandIconButton
-            aria-label="New"
+            aria-label={t("New")}
             className="sand-agents-sidebar__new"
             icon="plus"
-            label="New"
+            label={t("New")}
             onClick={onNewAgent}
             shape="circle"
             size="sm"
-            title="New agent"
+            title={t("New agent")}
           />
         ) : null}
         <SandIconButton
-          aria-label="Settings"
+          aria-label={t("Settings")}
           className="sand-agents-sidebar__settings"
           icon="settings-gear"
-          label="Settings"
+          label={t("Settings")}
           onClick={onOpenSettings}
           size="sm"
-          title="Settings"
+          title={t("Settings")}
         />
       </footer>
+      {menu && items.length ? <SidebarMenu point={menu.point} items={items} onClose={closeMenu} /> : null}
+      {groupDialog ? <SidebarNameDialog key={groupDialog.sectionId ?? "new"} title={groupDialog.sectionId ? t("Rename group") : t("New group")}
+        initialValue={groupDialog.name} busy={busy} error={t(notice)} onClose={() => setGroupDialog(null)} onSave={(name) => {
+          const id = groupDialog.sectionId ?? crypto.randomUUID();
+          let next = groupDialog.sectionId
+            ? { ...organization, sections: organization.sections.map((item) => item.id === id ? { ...item, name } : item) }
+            : { ...organization, sections: [...organization.sections, { id, name, agentIds: [], isCollapsed: false }] };
+          if (groupDialog.agentId) next = assignSidebarAgent(next, groupDialog.agentId, id);
+          void commit(next).then((saved) => { if (saved) setGroupDialog(null); });
+        }} /> : null}
       <SidebarResizeHandle
         onResize={(width) => onLayoutChange(applySidebarDrag(layoutRef.current, width))}
         onResizeEnd={() => onLayoutChange(settleSidebarLayout(layoutRef.current))}

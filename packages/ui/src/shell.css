@@ -3,7 +3,7 @@ html, body, #root {
   margin: 0;
 }
 :root {
-  --sand-titlebar-block: 52px;
+  --sand-titlebar-block: 44px;
   --sand-traffic-lights-inset: 78px;
 }
 body {
@@ -62,7 +62,7 @@ textarea, input, .sand-message-prose { user-select: text; }
   flex-direction: column;
   max-width: 42vw;
 }
-.sand-agents-sidebar.is-collapsed { width: 64px; }
+.sand-agents-sidebar.is-collapsed { width: 88px; }
 .sand-workspace {
   position: relative;
   display: flex;

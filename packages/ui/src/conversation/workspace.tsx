@@ -1,8 +1,10 @@
+import { t } from "../i18n";
 import type { AgentView, ViewBlock } from "@nuum/protocol";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SandIcon, SandIconButton } from "../kit/sand-kit-primitives";
+import { AutoTextarea } from "../kit/auto-textarea";
 import { AGENT_AVATAR_COLORS, AGENT_AVATAR_SHAPES, AgentAvatar } from "./agent-avatar";
 
 export interface PendingTool {
@@ -38,17 +40,17 @@ export interface ConversationWorkspaceProps {
 
 function toolLabel(name: string): string {
   const normalized = name.toLowerCase();
-  if (normalized === "bash" || normalized === "shell") return "Bash";
-  if (normalized === "read") return "Read";
-  if (normalized === "ls") return "List";
-  if (normalized === "write") return "Write";
+  if (normalized === "bash" || normalized === "shell") return t("Bash");
+  if (normalized === "read") return t("Read");
+  if (normalized === "ls") return t("List");
+  if (normalized === "write") return t("Write");
   return name.replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
 function toolStatus(status: "pending" | "ok" | "error"): string {
-  if (status === "pending") return "执行中";
-  if (status === "error") return "失败";
-  return "已完成";
+  if (status === "pending") return t("执行中");
+  if (status === "error") return t("失败");
+  return t("已完成");
 }
 
 function ToolActivity({ tool }: { tool: Extract<ViewBlock, { type: "assistant" }>["tools"][number] }) {
@@ -61,13 +63,13 @@ function ToolActivity({ tool }: { tool: Extract<ViewBlock, { type: "assistant" }
       </summary>
       <div className="sand-tool-activity__detail">
         <section>
-          <span>Arguments</span>
+          <span>{t("Arguments")}</span>
           <pre>{JSON.stringify(tool.arguments, null, 2)}</pre>
         </section>
         {tool.output !== undefined ? (
           <section>
-            <span>Output</span>
-            <pre>{tool.output || "(no output)"}</pre>
+            <span>{t("Output")}</span>
+            <pre>{tool.output || t("(no output)")}</pre>
           </section>
         ) : null}
       </div>
@@ -84,7 +86,7 @@ function AssistantBlock({ block }: { block: Extract<ViewBlock, { type: "assistan
         {block.live && block.tools.length === 0 ? (
           <div className="sand-thinking-status">
             <span className="sand-thinking-status__pulse" />
-            <span>思考中</span>
+            <span>{t("思考中")}</span>
           </div>
         ) : null}
         {block.tools.map((tool) => <ToolActivity key={tool.id} tool={tool} />)}
@@ -127,7 +129,10 @@ function NoticeBlock({ block }: { block: Extract<ViewBlock, { type: "notice" }> 
   return (
     <article className="sand-transcript-row">
       <div className="sand-transcript-notice" data-kind={block.kind}>
-        {block.text}
+        {block.kind === "profile" ? (() => {
+          const renamed = /^This agent changed name to "(.*)"\.$/.exec(block.text);
+          return renamed ? t('This Nu-nu changed name to "{name}".', { name: renamed[1] }) : t("This Nu-nu changed its profile.");
+        })() : t(block.text)}
       </div>
     </article>
   );
@@ -144,8 +149,8 @@ function PeerBlock({ block }: { block: Extract<ViewBlock, { type: "peer" }> }) {
             size={22}
             state={outbound ? "sending" : "receiving"}
           />
-          <span>{outbound ? "To" : "From"} {block.agentName}</span>
-          {block.priority ? <span className="sand-peer-message__priority">Priority</span> : null}
+          <span>{outbound ? t("To") : t("From")} {block.agentName}</span>
+          {block.priority ? <span className="sand-peer-message__priority">{t("Priority")}</span> : null}
         </div>
         <div className={`sand-message ${outbound ? "sand-message--peer-outbound" : "sand-message--assistant"}`}>
           <div className="sand-message-prose"><p>{block.text}</p></div>
@@ -191,31 +196,31 @@ function AgentCreation({
           state="happy"
         />
         <div>
-          <span className="sand-agent-create__eyebrow">A teammate with its own context</span>
-          <h1>Create an Agent</h1>
-          <p>Give it an ongoing job. It gets its own conversation, memory, and workspace.</p>
+          <span className="sand-agent-create__eyebrow">{t("A teammate with its own context")}</span>
+          <h1>{t("Create an Agent")}</h1>
+          <p>{t("Give it an ongoing job. It gets its own conversation, memory, and workspace.")}</p>
         </div>
       </div>
       <div className="sand-agent-create__editor">
         <label>
-          <span>Name</span>
-          <input autoFocus onChange={(event) => setName(event.target.value)} placeholder="e.g. Release scout" value={name} />
+          <span>{t("Name")}</span>
+          <input autoFocus onChange={(event) => setName(event.target.value)} placeholder={t("e.g. Release scout")} value={name} />
         </label>
         <label>
-          <span>What should this Agent do?</span>
-          <textarea
+          <span>{t("What should this Agent do?")}</span>
+          <AutoTextarea
             onChange={(event) => setDescription(event.target.value)}
-            placeholder="A standing role helps other Agents know when to message it."
+            placeholder={t("A standing role helps other Agents know when to message it.")}
             value={description}
           />
         </label>
         <div className="sand-agent-create__appearance">
-          <span>Character</span>
-          <div aria-label="Character color" className="sand-agent-create__colors" role="radiogroup">
+          <span>{t("Character")}</span>
+          <div aria-label={t("Character color")} className="sand-agent-create__colors" role="radiogroup">
             {AGENT_AVATAR_COLORS.map((color) => (
               <button
                 aria-checked={avatarColor === color.id}
-                aria-label={`${color.id} color`}
+                aria-label={t("{name} color", { name: t(color.id) })}
                 key={color.id}
                 onClick={() => setAvatarColor(color.id)}
                 role="radio"
@@ -224,11 +229,11 @@ function AgentCreation({
               />
             ))}
           </div>
-          <div aria-label="Character shape" className="sand-agent-create__shapes" role="radiogroup">
+          <div aria-label={t("Character shape")} className="sand-agent-create__shapes" role="radiogroup">
             {AGENT_AVATAR_SHAPES.map((shape) => (
               <button
                 aria-checked={avatarShape === shape}
-                aria-label={`${shape} shape`}
+                aria-label={t("{name} shape", { name: t(shape) })}
                 key={shape}
                 onClick={() => setAvatarShape(shape)}
                 role="radio"
@@ -241,27 +246,27 @@ function AgentCreation({
         </div>
       </div>
       <div className="sand-agent-create__suggestions">
-        <span>Or start with a role</span>
+        <span>{t("Or start with a role")}</span>
         <div>
           {AGENT_TEMPLATES.map((template) => (
             <button
-              key={template.name}
+              key={t(template.name)}
               onClick={() => {
-                setName(template.name);
-                setDescription(template.description);
+                setName(t(template.name));
+                setDescription(t(template.description));
               }}
               type="button"
             >
-              <strong>{template.name}</strong>
-              <span>{template.description}</span>
+              <strong>{t(template.name)}</strong>
+              <span>{t(template.description)}</span>
             </button>
           ))}
         </div>
       </div>
       <div className="sand-agent-create__actions">
-        {error ? <span className="sand-agent-create__error">{error}</span> : null}
-        {canCancel ? <button className="sand-agent-create__cancel" onClick={onCancel} type="button">Cancel</button> : null}
-        <button className="sand-agent-create__submit" disabled={!name.trim()} onClick={submit} type="button">Create Agent</button>
+        {error ? <span className="sand-agent-create__error">{t(error)}</span> : null}
+        {canCancel ? <button className="sand-agent-create__cancel" onClick={onCancel} type="button">{t("Cancel")}</button> : null}
+        <button className="sand-agent-create__submit" disabled={!name.trim()} onClick={submit} type="button">{t("Create Agent")}</button>
       </div>
     </div>
   );
@@ -290,6 +295,13 @@ export function ConversationWorkspace({
   const composingRef = useRef(false);
 
   useEffect(() => {
+    const field = promptRef.current;
+    if (!field) return;
+    field.style.height = "auto";
+    field.style.height = `${Math.min(96, field.scrollHeight)}px`;
+  }, [draft, creatingAgent]);
+
+  useEffect(() => {
     if (creatingAgent) return;
     const transcript = transcriptRef.current;
     if (!transcript) return;
@@ -315,7 +327,7 @@ export function ConversationWorkspace({
               />
             </span>
             <span id="sand-conversation-heading">{agent.profile.name}</span>
-            {agent.runtime.status === "running" ? <small>Working</small> : null}
+            {agent.runtime.status === "running" ? <small>{t("Working")}</small> : null}
           </div>
         ) : (
           <div className="sand-chat-header__identity sand-chat-header__identity--blank" />
@@ -324,11 +336,11 @@ export function ConversationWorkspace({
       {creatingAgent ? (
         <AgentCreation canCancel={canCancelCreate} error={creationError} onCancel={onCancelCreate} onCreate={onCreateAgent} />
       ) : <>
-      <div aria-label="Conversation transcript" className="sand-virtual-transcript" ref={transcriptRef} role="log">
+      <div aria-label={t("Conversation transcript")} className="sand-virtual-transcript" ref={transcriptRef} role="log">
         {empty ? (
           <div className="sand-empty sand-empty--welcome">
             <strong className="sand-empty__mark">Nuum</strong>
-            <span>Ask anything, or drop a file.</span>
+            <span>{t("Ask anything, or drop a file.")}</span>
           </div>
         ) : null}
         {blocks.map((block) =>
@@ -355,18 +367,18 @@ export function ConversationWorkspace({
         {pendingTool ? (
           <div className="sand-permission-dock">
             <div>
-              <strong>Allow {pendingTool.action}?</strong>
+              <strong>{t("Allow {action}?", { action: t(pendingTool.action) })}</strong>
               <div className="sand-permission-dock__preview">{pendingTool.target}</div>
             </div>
             <div className="sand-permission-dock__actions">
-              <button className="sand-permission-dock__btn sand-permission-dock__btn--deny" onClick={() => onApprove("deny")} type="button">Deny</button>
-              <button className="sand-permission-dock__btn sand-permission-dock__btn--deny" onClick={() => onApprove("never")} type="button">Never</button>
-              <button className="sand-permission-dock__btn sand-permission-dock__btn--once" onClick={() => onApprove("once")} type="button">Only this time</button>
-              <button className="sand-permission-dock__btn sand-permission-dock__btn--always" onClick={() => onApprove("always")} type="button">Always this action</button>
+              <button className="sand-permission-dock__btn sand-permission-dock__btn--deny" onClick={() => onApprove("deny")} type="button">{t("Deny")}</button>
+              <button className="sand-permission-dock__btn sand-permission-dock__btn--deny" onClick={() => onApprove("never")} type="button">{t("Never")}</button>
+              <button className="sand-permission-dock__btn sand-permission-dock__btn--once" onClick={() => onApprove("once")} type="button">{t("Only this time")}</button>
+              <button className="sand-permission-dock__btn sand-permission-dock__btn--always" onClick={() => onApprove("always")} type="button">{t("Always this action")}</button>
             </div>
           </div>
         ) : null}
-        {notice ? <div className="sand-prompt-attachment-notice">{notice}</div> : null}
+        {notice ? <div className="sand-prompt-attachment-notice">{t(notice)}</div> : null}
         <form
           className="sand-prompt-form"
           onSubmit={(event: FormEvent) => {
@@ -377,6 +389,7 @@ export function ConversationWorkspace({
           <div className="sand-prompt-shell">
             <textarea
               className="sand-prompt-field"
+              rows={1}
               ref={promptRef}
               onChange={(event) => onDraftChange(event.target.value)}
               onCompositionEnd={() => {
@@ -395,19 +408,19 @@ export function ConversationWorkspace({
                   onSubmit();
                 }
               }}
-              placeholder={agent ? `Message ${agent.profile.name}` : "Ask anything, or drop a file."}
+              placeholder={agent ? t("Message {name}", { name: agent.profile.name }) : t("Ask anything, or drop a file.")}
               value={draft}
             />
             <div className="sand-prompt-actions-row">
-              <button className="sand-prompt-attach" disabled type="button" aria-label="Attach file">
-                <SandIcon name="attach" />
+              <button className="sand-prompt-attach" disabled type="button" aria-label={t("Attach file")}>
+                <SandIcon name="attach" size={16} />
               </button>
               {agent?.runtime.status === "running" ? (
-                <button className="sand-prompt-send" onClick={onCancel} type="button" aria-label="Stop">
+                <button className="sand-prompt-send" onClick={onCancel} type="button" aria-label={t("Stop")}>
                   <SandIcon name="stop" />
                 </button>
               ) : (
-                <button className="sand-prompt-send" disabled={!draft.trim()} type="submit" aria-label="Send message">
+                <button className="sand-prompt-send" disabled={!draft.trim()} type="submit" aria-label={t("Send message")}>
                   <SandIcon name="arrow-up" size={16} />
                 </button>
               )}
@@ -444,7 +457,7 @@ export function SettingsOverlay({
         role="dialog"
       >
         <div className="sand-settings-layout">
-          <nav aria-label="Settings sections" className="sand-settings-nav">
+          <nav aria-label={t("Settings sections")} className="sand-settings-nav">
             <button
               aria-current={section === "general" ? "page" : undefined}
               className="sand-settings-nav__item"
@@ -453,7 +466,7 @@ export function SettingsOverlay({
               type="button"
             >
               <SandIcon name="settings-gear" size="sm" />
-              <span>General</span>
+              <span>{t("General")}</span>
             </button>
             <button
               aria-current={section === "models" ? "page" : undefined}
@@ -463,19 +476,19 @@ export function SettingsOverlay({
               type="button"
             >
               <SandIcon name="sliders" size="sm" />
-              <span>Models</span>
+              <span>{t("Models")}</span>
             </button>
           </nav>
           <section className="sand-settings-panel">
             <SandIconButton
-              aria-label="Close"
+              aria-label={t("Close")}
               className="sand-settings-panel__close"
               icon="close"
-              label="Close"
+              label={t("Close")}
               onClick={onClose}
               size="sm"
             />
-            <h2 id={headingId}>{section === "general" ? "General" : "Models"}</h2>
+            <h2 id={headingId}>{section === "general" ? t("General") : t("Models")}</h2>
             <div className="sand-settings-panel__body">{children}</div>
           </section>
         </div>

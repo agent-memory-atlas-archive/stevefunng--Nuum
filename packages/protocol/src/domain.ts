@@ -72,10 +72,13 @@ export type ChatMessage = z.infer<typeof ChatMessage>;
 /**
  * profile.json — 人格与身份，用户可改，Host 是唯一写者。
  */
+export const AgentTags = z.array(z.string().trim().min(1)).transform((tags) => [...new Set(tags)]);
+
 export const AgentProfile = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string(),
+  tags: AgentTags.optional(),
   avatarColor: z.string().optional(),
   avatarShape: z.string().optional(),
   createdAt: z.number()
@@ -118,10 +121,32 @@ export type AgentView = z.infer<typeof AgentView>;
 
 export const DEFAULT_AGENT_NAME = "Assistant";
 
+export const SidebarOrganization = z.object({
+  pinnedAgentIds: z.array(z.string()),
+  sections: z.array(z.object({
+    id: z.string().min(1),
+    name: z.string().trim().min(1).max(80),
+    agentIds: z.array(z.string()),
+    isCollapsed: z.boolean().optional()
+  }))
+}).superRefine((value, context) => {
+  const groupIds = value.sections.map((section) => section.id);
+  const members = value.sections.flatMap((section) => section.agentIds);
+  if (new Set(groupIds).size !== groupIds.length || new Set(members).size !== members.length || new Set(value.pinnedAgentIds).size !== value.pinnedAgentIds.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "Sidebar groups, memberships and pins must be unique" });
+  }
+});
+export type SidebarOrganization = z.infer<typeof SidebarOrganization>;
+
+export const Language = z.enum(["zh-CN", "en"]);
+export type Language = z.infer<typeof Language>;
+
 export const Settings = z.object({
   defaultToolPermission: ToolPermission,
   defaultModel: ModelRef,
-  theme: ThemePreference
+  theme: ThemePreference,
+  language: Language.optional(),
+  sidebar: SidebarOrganization.optional()
 });
 export type Settings = z.infer<typeof Settings>;
 
@@ -170,5 +195,6 @@ export type ToolDefinition = z.infer<typeof ToolDefinition>;
 export const DEFAULT_SETTINGS: Settings = {
   defaultToolPermission: "ask",
   defaultModel: { provider: "deepseek", model: DEFAULT_MODEL_ID.deepseek },
-  theme: "dark"
+  theme: "dark",
+  language: "zh-CN"
 };

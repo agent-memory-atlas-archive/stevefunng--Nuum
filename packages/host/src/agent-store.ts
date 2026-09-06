@@ -46,7 +46,7 @@ export interface AgentApprovals {
  */
 export interface PromptCache {
   epoch: number;
-  profile?: { render: string; identity: { name: string; description: string } };
+  profile?: { render: string; identity: { name: string; description: string; tags?: string[] } };
   /** 冻结的记忆段。记忆真源始终是 memory/*.md，这里只是渲染结果的快照。 */
   memory?: string;
 }

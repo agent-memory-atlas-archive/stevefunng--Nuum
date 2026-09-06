@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { ToolDefinition } from "./domain.js";
+import { AgentTags } from "./domain.js";
 import { OutboundMessage } from "./transcript.js";
 
 /**
@@ -31,7 +32,8 @@ export const UpdateStateParams = z.discriminatedUnion("target", [
     target: z.literal("profile"),
     action: z.literal("set"),
     name: z.string().optional(),
-    description: z.string().optional()
+    description: z.string().optional(),
+    tags: AgentTags.optional()
   }),
   z.object({
     target: z.literal("memory"),
@@ -57,7 +59,8 @@ export type CreateAgentParams = z.infer<typeof CreateAgentParams>;
 export const UpdateAgentParams = z.object({
   agent_id: z.string(),
   name: z.string().optional(),
-  description: z.string().optional()
+  description: z.string().optional(),
+  tags: AgentTags.optional()
 });
 export type UpdateAgentParams = z.infer<typeof UpdateAgentParams>;
 
@@ -137,7 +140,7 @@ export const DELEGATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: DelegatedToolNames.updateState,
     description:
-      "Change your own persistent state. target=profile rewrites your own name or description; target=memory records or forgets a durable fact; target=settings sets or clears your project directory. Fields you do not pass are left alone.",
+      "Change your own persistent state. target=profile rewrites your own name, tags or description; target=memory records or forgets a durable fact; target=settings sets or clears your project directory. Fields you do not pass are left alone.",
     inputSchema: {
       type: "object",
       required: ["target", "action"],
@@ -146,6 +149,7 @@ export const DELEGATED_TOOL_DEFINITIONS: ToolDefinition[] = [
         action: { type: "string", enum: ["set", "write", "forget"] },
         name: { type: "string", description: "For target=profile." },
         description: { type: "string", description: "For target=profile." },
+        tags: { type: "array", items: { type: "string" }, description: "For target=profile: replaces all tags; pass [] to clear." },
         project_root: { type: ["string", "null"], description: "For target=settings: absolute project directory, or null to clear it." },
         fact: { type: "string", description: "For target=memory: one self-contained fact." },
         tier: {
@@ -178,7 +182,7 @@ export const DELEGATED_TOOL_DEFINITIONS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       required: ["agent_id"],
-      properties: { agent_id: AGENT_ID, name: { type: "string" }, description: { type: "string" } }
+      properties: { agent_id: AGENT_ID, name: { type: "string" }, description: { type: "string" }, tags: { type: "array", items: { type: "string" } } }
     },
     mutating: false
   },

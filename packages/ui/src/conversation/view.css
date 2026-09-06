@@ -3,7 +3,7 @@
 
 .sand-agents-sidebar { position: relative; min-height: 0; width: 100%; background: var(--nuum-bg-chrome); border-right: 1px solid var(--nuum-stroke-tertiary); container-name: sand-sidebar; container-type: inline-size; transition: width .22s cubic-bezier(.22, 1, .36, 1); }
 .sand-agents-sidebar.is-resizing { transition: none; }
-.sand-agents-sidebar__header { display: flex; align-items: center; justify-content: flex-end; height: var(--sand-titlebar-block, 50px); padding: 0 12px 0 var(--sand-traffic-lights-inset, 16px); }
+.sand-agents-sidebar__header { display: flex; align-items: center; justify-content: flex-end; height: var(--sand-titlebar-block, 44px); min-height: var(--sand-titlebar-block, 44px); flex: 0 0 var(--sand-titlebar-block, 44px); padding: 0 12px 0 var(--sand-traffic-lights-inset, 16px); }
 .sand-agents-sidebar__new-actions { display: flex; gap: 3px; }
 .sand-agents-sidebar__rail-new { display: flex; justify-content: center; width: 100%; padding: 8px 0; }
 .sand-agents-sidebar__new-actions button,
@@ -203,7 +203,7 @@
 .sand-agents-section__reveal { outline: 1px solid var(--nuum-stroke-focused); outline-offset: -1px; background: var(--sand-fill-accent-subtle); }
 
 /* r0n: absolute edge handle, transparent surface, app-region exclusion, col-resize cursor, and touch-action cleanup. */
-.sand-sidebar-resize-handle { position: absolute; top: 0; right: -6px; bottom: 0; width: 12px; background: transparent; cursor: col-resize; -webkit-app-region: no-drag; touch-action: none; }
+.sand-sidebar-resize-handle { z-index: 5; position: absolute; top: 0; right: -6px; bottom: 0; width: 12px; background: transparent; cursor: col-resize; -webkit-app-region: no-drag; touch-action: none; }
 
 .sand-agents-sidebar.is-collapsed .sand-agents-sidebar__header {
   justify-content: center;
@@ -217,6 +217,8 @@
 .sand-agents-sidebar.is-collapsed .sand-agent-item {
   display: grid;
   grid-template-columns: 40px;
+  gap: 0;
+  justify-items: center;
   justify-content: center;
   width: 48px;
   min-height: 48px;
@@ -237,7 +239,7 @@
   display: none;
 }
 .sand-agents-sidebar.is-collapsed .sand-work-section { width: 100%; margin-top: 8px; padding-top: 8px; }
-.sand-agents-sidebar.is-collapsed .sand-work-item { display: grid; grid-template-columns: 40px; justify-content: center; width: 48px; min-height: 48px; padding: 4px; margin: 0 auto; }
+.sand-agents-sidebar.is-collapsed .sand-work-item { display: grid; grid-template-columns: 40px; gap: 0; justify-items: center; justify-content: center; width: 48px; min-height: 48px; padding: 4px; margin: 0 auto; }
 .sand-agents-sidebar.is-collapsed .sand-work-item__mark { width: 40px; height: 40px; }
 .sand-agents-sidebar.is-collapsed .sand-work-item__body { display: none; }
 
@@ -440,8 +442,13 @@
 .sand-prompt-send {
   display: grid;
   place-items: center;
+  place-self: center;
   width: 30px;
   height: 30px;
+  min-width: 30px;
+  min-height: 30px;
+  margin: 0;
+  line-height: 0;
   padding: 0;
   border: 0;
   border-radius: 50%;
@@ -462,6 +469,9 @@
   background: var(--sand-fill-primary);
   transition: background-color .16s ease, opacity .16s ease;
 }
+.sand-prompt-attach svg,
+.sand-prompt-send svg { display: block; flex: none; }
+.sand-prompt-attach svg { stroke-width: 1.25; }
 .sand-prompt-send svg {
   color: inherit;
   stroke: currentColor;
@@ -485,13 +495,6 @@
 .sand-recording-chip__timer { color: var(--nuum-text-primary); font-variant-numeric: tabular-nums; font-size: var(--nuum-font-size-lg); line-height: var(--nuum-line-height-lg); letter-spacing: var(--nuum-letter-spacing-lg); }
 .sand-recording-chip__waveform { display: inline-flex; width: 18px; height: 13px; color: var(--nuum-text-secondary); }
 .sand-prompt-file-input { display: none; }
-
-@media (max-width: 760px) {
-  .sand-agent-item__body, .sand-agent-item__trailing { display: none; }
-  .sand-agents-sidebar__header { justify-content: center; padding: 0; }
-  .sand-agents-sidebar__new-actions button:not(:last-child) { display: none; }
-  .sand-agent-item { grid-template-columns: 1fr; justify-items: center; }
-}
 
 /* Agent persona mark: the source silhouette stays crisp while state is animated by the shell. */
 .sand-agent-avatar {
@@ -656,7 +659,7 @@
   outline: none;
   box-shadow: var(--nuum-box-shadow-sm);
 }
-.sand-agent-create__editor textarea { min-height: 74px; resize: vertical; line-height: 1.45; }
+.sand-agent-create__editor textarea { line-height: 1.45; }
 .sand-agent-create__editor input:focus,
 .sand-agent-create__editor textarea:focus { border-color: var(--nuum-stroke-focused); }
 .sand-agent-create__appearance { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }

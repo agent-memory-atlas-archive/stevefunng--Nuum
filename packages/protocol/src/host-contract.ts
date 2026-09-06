@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   AgentSettings,
+  AgentTags,
   AgentView,
   ModelRef,
   PublicSettings,
@@ -223,6 +224,8 @@ export const SettingsSetParams = z.object({
   defaultToolPermission: ToolPermission.optional(),
   defaultModel: ModelRef.optional(),
   theme: Settings.shape.theme.optional(),
+  language: Settings.shape.language,
+  sidebar: Settings.shape.sidebar,
   openaiApiKey: z.string().nullable().optional(),
   anthropicApiKey: z.string().nullable().optional(),
   deepseekApiKey: z.string().nullable().optional()
@@ -232,6 +235,7 @@ export type SettingsSetParams = z.infer<typeof SettingsSetParams>;
 export const AgentCreateParams = z.object({
   name: z.string().optional(),
   description: z.string().optional(),
+  tags: AgentTags.optional(),
   avatarColor: z.string().optional(),
   avatarShape: z.string().optional(),
   model: ModelRef.optional(),
@@ -247,6 +251,7 @@ export const AgentUpdateParams = z.object({
   id: z.string(),
   name: z.string().min(1).optional(),
   description: z.string().optional(),
+  tags: AgentTags.optional(),
   avatarColor: z.string().optional(),
   avatarShape: z.string().optional(),
   model: ModelRef.optional(),

@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test, type TestContext } from "node:test";
 import { HostRuntime } from "./runtime.js";
+import { AgentUpdateParams, HostEvents } from "@nuum/protocol";
 
 /**
  * 这些用例只验证 Host 自己的不变式，不需要真 Kernel：指向一个立刻退出的命令，
@@ -130,4 +131,64 @@ test("delete removes the agent directory and drops it from the list", async (t) 
   await runtime.deleteAgent(created.profile.id);
   assert.deepEqual(await runtime.listAgents(), []);
   assert.deepEqual(await readdir(path.join(dir, "agents")), []);
+});
+
+test("sidebar organization survives restart and does not change Agent or Work identity", async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), "nuum-sidebar-"));
+  const runtime = await openRuntime(t, dir);
+  const agent = await runtime.createAgent({ name: "Researcher" });
+  const sidebar = { pinnedAgentIds: [agent.profile.id], sections: [{ id: "research", name: "Research", agentIds: [agent.profile.id], isCollapsed: true }] };
+  const result = await runtime.setSettings({ sidebar });
+  assert.deepEqual(result.sidebar, sidebar);
+  await runtime.setSettings({ theme: "light" });
+  await runtime.dispose();
+  const restarted = await openRuntime(t, dir);
+  assert.deepEqual(restarted.getPublicSettings().sidebar, sidebar);
+  assert.equal(restarted.getPublicSettings().theme, "light");
+  const [restored] = await restarted.listAgents();
+  assert.ok(restored);
+  assert.deepEqual(restored.profile, agent.profile);
+  assert.equal(restored.settings.workMembership, undefined);
+});
+
+test("profile edits share one persisted identity with UI events and model context", async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), "nuum-profile-"));
+  const runtime = await openRuntime(t, dir);
+  const created = await runtime.createAgent({ name: "Scout", avatarColor: "green" });
+  const id = created.profile.id;
+  await runtime.buildSystemPrompt(id);
+  const emitted: unknown[] = [];
+  runtime.setEmitter((method, params) => { if (method === HostEvents.agentUpdated) emitted.push(params); });
+  const patch = { name: "Researcher", description: "Research product decisions", tags: ["research", "product"] };
+  const updated = await runtime.updateAgent(AgentUpdateParams.parse({ id, ...patch }));
+  assert.deepEqual(updated.profile.tags, patch.tags);
+  assert.deepEqual(emitted.at(-1), { agent: updated });
+  assert.equal(updated.profile.avatarColor, "green");
+  const stored = JSON.parse(await readFile(path.join(dir, "agents", id, "profile.json"), "utf8"));
+  assert.deepEqual(stored, updated.profile);
+  assert.deepEqual((await runtime.getAgent(id)).view.profile, stored);
+  const prompt = await runtime.buildSystemPrompt(id);
+  assert.match(prompt.notices.join("\n"), /Current name: Researcher/);
+  assert.match(prompt.notices.join("\n"), /Current tags: research, product/);
+  await runtime.updateAgent(AgentUpdateParams.parse({ id, tags: ["design"] }));
+  assert.match((await runtime.buildSystemPrompt(id)).notices.join("\n"), /Current tags: design/);
+  await runtime.dispose();
+  const restarted = await openRuntime(t, dir);
+  assert.deepEqual((await restarted.getAgent(id)).view.profile.tags, ["design"]);
+  await restarted.updateState(id, { target: "profile", action: "set", name: "Designer", tags: ["ux"] });
+  assert.equal((await restarted.getAgent(id)).view.profile.name, "Designer");
+  assert.deepEqual((await restarted.getAgent(id)).view.profile.tags, ["ux"]);
+});
+
+test("interface language survives restart without replacing other preferences", async (t) => {
+  const dir = await mkdtemp(path.join(tmpdir(), "nuum-language-"));
+  const runtime = await openRuntime(t, dir);
+  const { SettingsSetParams } = await import("@nuum/protocol");
+  await runtime.setSettings({ theme: "light" });
+  assert.equal((await runtime.setSettings(SettingsSetParams.parse({ language: "en" }))).language, "en");
+  await runtime.dispose();
+  const restarted = await openRuntime(t, dir);
+  assert.equal(restarted.getPublicSettings().language, "en");
+  assert.equal(restarted.getPublicSettings().theme, "light");
+  assert.equal(SettingsSetParams.safeParse({ language: "fr" }).success, false);
 });

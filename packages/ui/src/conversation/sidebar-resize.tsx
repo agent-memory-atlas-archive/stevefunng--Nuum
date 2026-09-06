@@ -1,3 +1,4 @@
+import { t } from "../i18n";
 import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from "react";
 
 export const SIDEBAR_LAYOUT_DEFAULTS = {
@@ -35,6 +36,14 @@ export function clampLiveWidth(width: number): number {
 export function projectSidebarWidth(state: SidebarLayoutState): number {
   if (state.isDragging && state.liveWidth != null) return state.liveWidth;
   return state.isCollapsed ? SIDEBAR_LAYOUT_BOUNDS.collapsedWidth : state.expandedWidth;
+}
+
+// Automatic compression is a projection; it must not overwrite the saved drag width.
+export function projectResponsiveSidebar(state: SidebarLayoutState, viewportWidth: number) {
+  const available = viewportWidth - 740;
+  const width = Math.min(projectSidebarWidth(state), Math.max(SIDEBAR_LAYOUT_BOUNDS.collapsedWidth, available));
+  const isCollapsed = state.isCollapsed || width < SIDEBAR_LAYOUT_BOUNDS.minExpandedWidth;
+  return { width: isCollapsed ? SIDEBAR_LAYOUT_BOUNDS.collapsedWidth : width, isCollapsed };
 }
 
 export function applySidebarDrag(state: SidebarLayoutState, width: number): SidebarLayoutState {
@@ -132,7 +141,7 @@ export function SidebarResizeHandle({
   useEffect(() => () => cleanupRef.current?.(), []);
   return (
     <div
-      aria-label="Resize sidebar"
+      aria-label={t("Resize sidebar")}
       aria-orientation="vertical"
       className="sand-sidebar-resize-handle"
       onPointerDown={onPointerDown}

@@ -1,3 +1,4 @@
+import { t, useLanguage, setLanguage } from "@nuum/ui";
 import {
   HostEvents,
   HostMethods,
@@ -7,8 +8,10 @@ import {
   type AgentSnapshot,
   type AgentView,
   type LiveAssistant,
+  type Language,
   type ProviderId,
   type PublicSettings,
+  type SidebarOrganization,
   type ThemePreference,
   type ToolPermission,
   type ToolResolution,
@@ -18,9 +21,11 @@ import {
   type WorkSnapshot
 } from "@nuum/protocol";
 import {
+  AgentProfilePanel,
   ConversationSidebar,
   ConversationWorkspace,
   SettingsOverlay,
+  SettingsSelect,
   WorkBoard,
   WorkCreation,
   createRuntimeThemeInstaller,
@@ -75,6 +80,10 @@ function applyPanePatch(
 }
 
 export function App() {
+  const language = useLanguage();
+  const [languageSaving, setLanguageSaving] = useState(false);
+  const [languageError, setLanguageError] = useState("");
+  useEffect(() => { document.documentElement.lang = language; }, [language]);
   const [agents, setAgents] = useState<AgentView[]>([]);
   const [works, setWorks] = useState<WorkProfile[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -87,6 +96,8 @@ export function App() {
   const [creatingAgent, setCreatingAgent] = useState(false);
   const [creationError, setCreationError] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [profileEditorId, setProfileEditorId] = useState<string | null>(null);
+  const profileSave = useRef(Promise.resolve());
   const [settingsSection, setSettingsSection] = useState<"general" | "models">("general");
   const [settings, setSettings] = useState<PublicSettings | null>(null);
   const [openaiKey, setOpenaiKey] = useState("");
@@ -96,6 +107,7 @@ export function App() {
   const [sidebarLayout, setSidebarLayout] = useState<SidebarLayoutState>(() =>
     typeof localStorage === "undefined" ? { expandedWidth: 236, isCollapsed: false } : readSidebarLayout()
   );
+  const sidebarSave = useRef(Promise.resolve());
   const themeHandle = useRef<ReturnType<typeof createRuntimeThemeInstaller> | null>(null);
   const activeWorkIdRef = useRef<string | null>(null);
   activeWorkIdRef.current = activeWorkId;
@@ -177,7 +189,7 @@ export function App() {
       }
       if (method === HostEvents.agentError && agentId) {
         setPanes((current) => applyPanePatch(current, agentId, {
-          notice: String(payload.message ?? "Host error"),
+          notice: String(payload.message ?? t("Host error")),
           live: null
         }));
       }
@@ -185,7 +197,7 @@ export function App() {
         setPanes((current) => applyPanePatch(current, agentId, {
           live: null,
           // 被掐和跑完是两回事，不能都静悄悄地收场。
-          ...(payload.status === "cancelled" ? { notice: "Stopped." } : {})
+          ...(payload.status === "cancelled" ? { notice: t("Stopped.") } : {})
         }));
       }
       if (method === HostEvents.workUpdated && payload.work) {
@@ -210,6 +222,7 @@ export function App() {
     setAgents(list);
     setWorks(workList);
     setSettings(publicSettings);
+    setLanguage(publicSettings.language ?? "zh-CN");
     setThemePref(publicSettings.theme ?? "dark");
     const secrets = await window.nuum.desktop.getSecrets();
     setOpenaiKey(secrets.openaiApiKey ?? "");
@@ -224,7 +237,8 @@ export function App() {
     }
   }
 
-  async function openAgent(id: string): Promise<void> {
+  async function openAgent(id: string, editProfile = false): Promise<void> {
+    setProfileEditorId(editProfile ? id : null);
     setCreatingAgent(false);
     setCreatingWork(false);
     setCreationError(null);
@@ -357,7 +371,7 @@ export function App() {
     if (activeWorkId) await loadWork(activeWorkId);
   }
 
-  async function runWorkMutation(work: () => Promise<unknown>): Promise<void> {
+  async function runWorkMutation(work: () => Promise<unknown>): Promise<boolean> {
     setWorkNotice(null);
     try {
       await work();
@@ -368,12 +382,14 @@ export function App() {
       setAgents(agentList);
       setWorks(workList);
       await refreshActiveWork();
+      return true;
     } catch (error) {
       setWorkNotice(error instanceof Error ? error.message : String(error));
+      return false;
     }
   }
 
-  function moveAgentToWork(agentId: string, workId: string): void {
+  function moveAgentToWork(agentId: string, workId: string, role: "worker" | "coordinator" | "observer" = "worker"): void {
     const target = agents.find((agent) => agent.profile.id === agentId);
     if (!target) return;
     const membership = target.settings.workMembership ?? { revision: 0, binding: null };
@@ -384,48 +400,36 @@ export function App() {
           fromWorkId: binding.workId,
           toWorkId: workId,
           agentId,
-          role: "worker",
+          role,
           expectedRevision: membership.revision
         })
       : window.nuum.host.request(HostMethods.workMemberAttach, {
           workId,
           agentId,
-          role: "worker",
+          role,
           expectedRevision: membership.revision
         }));
   }
 
-  function detachAgentFromWork(agentId: string): void {
-    const target = agents.find((agent) => agent.profile.id === agentId);
-    const membership = target?.settings.workMembership;
-    if (!membership?.binding) return;
-    const workId = membership.binding.workId;
-    void runWorkMutation(() => window.nuum.host.request(HostMethods.workMemberDetach, {
-      workId,
-      agentId,
-      expectedRevision: membership.revision
-    }));
-  }
-
-  async function saveSettings(): Promise<void> {
-    await window.nuum.desktop.setSecrets({
-      openaiApiKey: openaiKey || undefined,
-      anthropicApiKey: anthropicKey || undefined,
-      deepseekApiKey: deepseekKey || undefined
+  const secretSaveQueue = useRef(Promise.resolve());
+  function saveApiKey(field: "openaiApiKey" | "anthropicApiKey" | "deepseekApiKey", value: string): void {
+    // Serialize read/merge/write so consecutive blurs cannot overwrite another key.
+    secretSaveQueue.current = secretSaveQueue.current.then(async () => {
+      const secrets = await window.nuum.desktop.getSecrets();
+      await window.nuum.desktop.setSecrets({ ...secrets, [field]: value || undefined });
+      const next = await window.nuum.host.request(HostMethods.settingsSet, {
+        [field]: value || null
+      }) as PublicSettings;
+      setSettings((current) => current ? {
+        ...current,
+        hasOpenaiKey: next.hasOpenaiKey,
+        hasAnthropicKey: next.hasAnthropicKey,
+        hasDeepseekKey: next.hasDeepseekKey
+      } : next);
+    }).catch(() => {
+      // Keep diagnostics out of the form and never log secret values.
+      console.warn("Could not persist API key settings.");
     });
-    const defaultModel =
-      deepseekKey && !openaiKey && settings?.defaultModel.provider === "openai"
-        ? { provider: "deepseek" as const, model: DEFAULT_MODEL_ID.deepseek }
-        : settings?.defaultModel;
-    const next = await window.nuum.host.request(HostMethods.settingsSet, {
-      defaultToolPermission: settings?.defaultToolPermission,
-      defaultModel,
-      openaiApiKey: openaiKey || null,
-      anthropicApiKey: anthropicKey || null,
-      deepseekApiKey: deepseekKey || null
-    }) as PublicSettings;
-    setSettings(next);
-    setSettingsOpen(false);
   }
 
   async function updateActiveWorkspace(patch: {
@@ -449,6 +453,16 @@ export function App() {
       <div className="sand-cover-drag" />
       <ConversationSidebar
         agents={agents}
+        organization={settings?.sidebar}
+        onEditAgent={(id) => void openAgent(id, true)}
+        onOrganizationChange={(sidebar: SidebarOrganization) => {
+          const save = sidebarSave.current.then(async () => {
+            const next = await window.nuum.host.request(HostMethods.settingsSet, { sidebar }) as PublicSettings;
+            setSettings((current) => current ? { ...current, sidebar: next.sidebar } : next);
+          });
+          sidebarSave.current = save.catch(() => {});
+          return save;
+        }}
         works={works}
         activeId={activeId}
         activeWorkId={activeWorkId}
@@ -462,7 +476,6 @@ export function App() {
         onOpen={(id) => void openAgent(id)}
         onOpenWork={(id) => void openWork(id)}
         onMoveAgentToWork={moveAgentToWork}
-        onDetachAgent={detachAgentFromWork}
         onOpenSettings={() => setSettingsOpen(true)}
       />
       <div className="sand-workspace">
@@ -474,6 +487,9 @@ export function App() {
           />
         ) : activeWorkId && workSnapshot ? (
           <WorkBoard
+            key={activeWorkId}
+            onMoveAgentToWork={moveAgentToWork}
+            onPickDirectory={() => window.nuum.desktop.pickWorkspace()}
             agents={agents}
             snapshot={workSnapshot}
             onUpdateWork={(patch) => void runWorkMutation(() => window.nuum.host.request(HostMethods.workUpdate, {
@@ -511,15 +527,6 @@ export function App() {
                 instruction
               })
             )}
-            onAttachAgent={(agentId, role) => {
-              const target = agents.find((agent) => agent.profile.id === agentId);
-              void runWorkMutation(() => window.nuum.host.request(HostMethods.workMemberAttach, {
-                workId: activeWorkId,
-                agentId,
-                role,
-                expectedRevision: target?.settings.workMembership?.revision ?? 0
-              }));
-            }}
             onDetachAgent={(agentId, expectedRevision) => void runWorkMutation(() =>
               window.nuum.host.request(HostMethods.workMemberDetach, {
                 workId: activeWorkId,
@@ -531,7 +538,7 @@ export function App() {
               setFloatingAgentId(agentId);
               void loadAgent(agentId);
             }}
-            onAddCatalogEntry={(entry: WorkCatalogAddParams["entry"]) => void runWorkMutation(() =>
+            onAddCatalogEntry={(entry: WorkCatalogAddParams["entry"]) => runWorkMutation(() =>
               window.nuum.host.request(HostMethods.workCatalogAdd, {
                 workId: activeWorkId,
                 expectedRevision: workSnapshot.catalog.revision,
@@ -566,10 +573,10 @@ export function App() {
             onApprove={(resolution) => void approve(resolution)}
           />
         )}
-        {workNotice ? <div className="sand-work-notice" role="alert">{workNotice}</div> : null}
+        {workNotice ? <div className="sand-work-notice" role="alert">{t(workNotice)}</div> : null}
         {activeWorkId && floatingAgent && floatingAgentId ? (
-          <div aria-label={`Conversation with ${floatingAgent.profile.name}`} className="sand-work-agent-float" role="dialog">
-            <button aria-label="Close conversation" className="sand-work-agent-float__close" onClick={() => setFloatingAgentId(null)} type="button">×</button>
+          <div aria-label={t("Conversation with {name}", { name: floatingAgent.profile.name })} className="sand-work-agent-float" role="dialog">
+            <button aria-label={t("Close conversation")} className="sand-work-agent-float__close" onClick={() => setFloatingAgentId(null)} type="button">×</button>
             <ConversationWorkspace
               agent={floatingAgent}
               autoFocusInput
@@ -587,6 +594,17 @@ export function App() {
           </div>
         ) : null}
       </div>
+      {active && profileEditorId === active.profile.id && !creatingAgent && !activeWorkId && !creatingWork ? (
+        <AgentProfilePanel key={active.profile.id} profile={active.profile} onClose={() => setProfileEditorId(null)} onSave={(patch) => {
+          const id = active.profile.id;
+          const save = profileSave.current.then(async () => {
+            const updated = await window.nuum.host.request(HostMethods.agentUpdate, { id, ...patch }) as AgentView;
+            setAgents((items) => upsert(items, updated));
+          });
+          profileSave.current = save.catch(() => {});
+          return save;
+        }} />
+      ) : null}
       <SettingsOverlay
         open={settingsOpen}
         section={settingsSection}
@@ -595,35 +613,46 @@ export function App() {
       >
         {settingsSection === "general" ? (
           <div className="sand-settings-stack">
+            <section className="sand-settings-group"><h3>{t("Appearance")}</h3><div className="sand-settings-group__surface">
             <div className="sand-settings-row">
-              <div className="sand-settings-copy">
-                <span>Dark mode</span>
-                <small>Keep the current dark shell, or switch to the light palette.</small>
-              </div>
+              <div className="sand-settings-copy"><span>{t("Language")}</span><small>{t("Choose the language used throughout Nuum.")}</small></div>
               <div className="sand-settings-control">
-                <button
-                  aria-checked={resolveTheme(themePref) === "dark"}
-                  className="sand-switch"
-                  onClick={() => {
-                    const next = resolveTheme(themePref) === "dark" ? "light" : "dark";
-                    setThemePref(next);
-                    if (window.nuum != null) {
-                      void window.nuum.host.request(HostMethods.settingsSet, { theme: next }).then((value) => {
-                        setSettings(value as PublicSettings);
-                      });
-                    }
-                  }}
-                  role="switch"
-                  type="button"
-                >
-                  <span className="sand-switch__knob" />
-                </button>
+                <SettingsSelect aria-label={t("Language")} value={language} disabled={languageSaving} onChange={async (event) => {
+                  const next = event.target.value as Language;
+                  setLanguageSaving(true); setLanguageError("");
+                  try {
+                    await window.nuum.host.request(HostMethods.settingsSet, { language: next });
+                    setSettings((current) => current ? { ...current, language: next } : current);
+                    setLanguage(next);
+                  } catch { setLanguageError("Could not change language. Please try again."); }
+                  finally { setLanguageSaving(false); }
+                }}><option value="zh-CN" lang="zh-CN">中文</option><option value="en" lang="en">English</option></SettingsSelect>
+                {languageError ? <small role="alert">{t(languageError)}</small> : null}
               </div>
             </div>
             <div className="sand-settings-row">
               <div className="sand-settings-copy">
-                <span>Active agent project</span>
-                <small>Pre-approved read/write scope and default working directory for this agent.</small>
+                <span>{t("Theme")}</span>
+                <small>{t("Keep the current dark shell, or switch to the light palette.")}</small>
+              </div>
+              <div className="sand-settings-control">
+                <SettingsSelect aria-label={t("Theme")} value={themePref} onChange={(event) => {
+                  const next = event.target.value as ThemePreference;
+                  setThemePref(next);
+                  void window.nuum.host.request(HostMethods.settingsSet, { theme: next }).then((value) => setSettings(value as PublicSettings));
+                }}>
+                  <option value="system">{t("Follow system")}</option>
+                  <option value="light">{t("Light")}</option>
+                  <option value="dark">{t("Dark")}</option>
+                </SettingsSelect>
+              </div>
+            </div>
+            </div></section>
+            <section className="sand-settings-group"><h3>{t("Workspace and permissions")}</h3><div className="sand-settings-group__surface">
+            <div className="sand-settings-row">
+              <div className="sand-settings-copy">
+                <span>{t("Active agent project")}</span>
+                <small>{t("Pre-approved read/write scope and default working directory for this agent.")}</small>
               </div>
               <div className="sand-settings-control">
                 <SandWorkspace
@@ -639,30 +668,30 @@ export function App() {
             </div>
             <div className="sand-settings-row">
               <div className="sand-settings-copy">
-                <span>Active agent permission</span>
-                <small>Override the global default for local file and command actions.</small>
+                <span>{t("Active agent permission")}</span>
+                <small>{t("Override the global default for local file and command actions.")}</small>
               </div>
               <div className="sand-settings-control">
-                <select
+                <SettingsSelect aria-label={t("Active agent permission")}
                   value={active?.settings.workspace?.toolPermission ?? "follow"}
                   onChange={(event) => void updateActiveWorkspace({
                     toolPermission: event.target.value === "follow" ? null : event.target.value as ToolPermission
                   })}
                 >
-                  <option value="follow">Follow global</option>
-                  <option value="ask">Ask</option>
-                  <option value="always">Always</option>
-                  <option value="never">Never</option>
-                </select>
+                  <option value="follow">{t("Follow global")}</option>
+                  <option value="ask">{t("Ask")}</option>
+                  <option value="always">{t("Always")}</option>
+                  <option value="never">{t("Never")}</option>
+                </SettingsSelect>
               </div>
             </div>
             <div className="sand-settings-row">
               <div className="sand-settings-copy">
-                <span>Default local-tool permission</span>
-                <small>Used by agents that follow the global setting. Hard safety blocks always remain.</small>
+                <span>{t("Default local-tool permission")}</span>
+                <small>{t("Used by agents that follow the global setting. Hard safety blocks always remain.")}</small>
               </div>
               <div className="sand-settings-control">
-                <select
+                <SettingsSelect aria-label={t("Default local-tool permission")}
                   value={settings?.defaultToolPermission ?? "ask"}
                   onChange={async (event) => {
                     const next = await window.nuum.host.request(HostMethods.settingsSet, {
@@ -671,25 +700,24 @@ export function App() {
                     setSettings(next);
                   }}
                 >
-                  <option value="ask">Ask</option>
-                  <option value="always">Always</option>
-                  <option value="never">Never</option>
-                </select>
+                  <option value="ask">{t("Ask")}</option>
+                  <option value="always">{t("Always")}</option>
+                  <option value="never">{t("Never")}</option>
+                </SettingsSelect>
               </div>
             </div>
-            <div className="sand-settings-actions">
-              <button className="sand-kit-button sand-1wclgxm" onClick={() => void saveSettings()} type="button">Save</button>
-            </div>
+            </div></section>
           </div>
         ) : (
           <div className="sand-settings-stack">
+            <section className="sand-settings-group"><h3>{t("Model preferences")}</h3><div className="sand-settings-group__surface">
             <div className="sand-settings-row">
               <div className="sand-settings-copy">
-                <span>Default provider</span>
-                <small>Used for new chats until you change the session model.</small>
+                <span>{t("Default provider")}</span>
+                <small>{t("Used for new chats until you change the session model.")}</small>
               </div>
               <div className="sand-settings-control">
-                <select
+                <SettingsSelect aria-label={t("Default provider")}
                   value={settings?.defaultModel.provider ?? "deepseek"}
                   onChange={async (event) => {
                     const provider = event.target.value as ProviderId;
@@ -702,17 +730,17 @@ export function App() {
                   <option value="deepseek">DeepSeek</option>
                   <option value="openai">OpenAI</option>
                   <option value="anthropic">Anthropic</option>
-                </select>
+                </SettingsSelect>
               </div>
             </div>
             {settings?.defaultModel.provider === "deepseek" ? (
               <div className="sand-settings-row">
                 <div className="sand-settings-copy">
-                  <span>DeepSeek model</span>
-                  <small>deepseek-chat for everyday use. deepseek-reasoner for longer reasoning.</small>
+                  <span>{t("DeepSeek model")}</span>
+                  <small>{t("deepseek-chat for everyday use. deepseek-reasoner for longer reasoning.")}</small>
                 </div>
                 <div className="sand-settings-control">
-                  <select
+                  <SettingsSelect aria-label={t("DeepSeek model")}
                     value={settings.defaultModel.model}
                     onChange={async (event) => {
                       const next = await window.nuum.host.request(HostMethods.settingsSet, {
@@ -723,40 +751,40 @@ export function App() {
                   >
                     <option value="deepseek-chat">deepseek-chat</option>
                     <option value="deepseek-reasoner">deepseek-reasoner</option>
-                  </select>
+                  </SettingsSelect>
                 </div>
               </div>
             ) : null}
+            </div></section>
+            <section className="sand-settings-group"><h3>{t("API keys")}</h3><div className="sand-settings-group__surface">
             <div className="sand-settings-row">
               <div className="sand-settings-copy">
-                <span>DeepSeek API key</span>
-                <small>Stored in the OS keychain and injected into Host memory only.</small>
+                <span>{t("DeepSeek API key")}</span>
+                <small>{t("Stored in the OS keychain and injected into Host memory only.")}</small>
               </div>
               <div className="sand-settings-control">
-                <input onChange={(event) => setDeepseekKey(event.target.value)} type="password" value={deepseekKey} />
-              </div>
-            </div>
-            <div className="sand-settings-row">
-              <div className="sand-settings-copy">
-                <span>OpenAI API key</span>
-                <small>Optional. Used when the default provider is OpenAI.</small>
-              </div>
-              <div className="sand-settings-control">
-                <input onChange={(event) => setOpenaiKey(event.target.value)} type="password" value={openaiKey} />
+                <input onBlur={(event) => saveApiKey("deepseekApiKey", event.currentTarget.value)} onChange={(event) => setDeepseekKey(event.target.value)} type="password" value={deepseekKey} />
               </div>
             </div>
             <div className="sand-settings-row">
               <div className="sand-settings-copy">
-                <span>Anthropic API key</span>
-                <small>Optional. Used when the default provider is Anthropic.</small>
+                <span>{t("OpenAI API key")}</span>
+                <small>{t("Optional. Used when the default provider is OpenAI.")}</small>
               </div>
               <div className="sand-settings-control">
-                <input onChange={(event) => setAnthropicKey(event.target.value)} type="password" value={anthropicKey} />
+                <input onBlur={(event) => saveApiKey("openaiApiKey", event.currentTarget.value)} onChange={(event) => setOpenaiKey(event.target.value)} type="password" value={openaiKey} />
               </div>
             </div>
-            <div className="sand-settings-actions">
-              <button className="sand-kit-button sand-1wclgxm" onClick={() => void saveSettings()} type="button">Save</button>
+            <div className="sand-settings-row">
+              <div className="sand-settings-copy">
+                <span>{t("Anthropic API key")}</span>
+                <small>{t("Optional. Used when the default provider is Anthropic.")}</small>
+              </div>
+              <div className="sand-settings-control">
+                <input onBlur={(event) => saveApiKey("anthropicApiKey", event.currentTarget.value)} onChange={(event) => setAnthropicKey(event.target.value)} type="password" value={anthropicKey} />
+              </div>
             </div>
+            </div></section>
           </div>
         )}
       </SettingsOverlay>
@@ -767,9 +795,9 @@ export function App() {
 function SandWorkspace({ value, onPick, onClear }: { value: string; onPick(): void; onClear(): void }) {
   return (
     <>
-      <input readOnly value={value || "No workspace selected"} />
-      <button className="sand-kit-button sand-1tiofj7" onClick={onPick} type="button">Choose</button>
-      {value ? <button className="sand-kit-button sand-1tiofj7" onClick={onClear} type="button">Clear</button> : null}
+      <input readOnly value={value || t("No workspace selected")} />
+      <button className="sand-kit-button sand-1tiofj7" onClick={onPick} type="button">{t("Choose")}</button>
+      {value ? <button className="sand-kit-button sand-1tiofj7" onClick={onClear} type="button">{t("Clear")}</button> : null}
     </>
   );
 }

@@ -29,6 +29,12 @@ export function resolveAgentAvatarColor(agentId: string, requested?: string | nu
   return selected ?? AGENT_AVATAR_COLORS[hash(agentId) % AGENT_AVATAR_COLORS.length]!;
 }
 
+export function resolveAgentAvatarShape(agentId: string, requested: string | null = "blob") {
+  return requested === "tablet" || requested === "blob"
+    ? requested
+    : AGENT_AVATAR_SHAPES[hash(agentId) % AGENT_AVATAR_SHAPES.length]!;
+}
+
 export function AgentAvatar({
   agentId,
   color,
@@ -46,9 +52,7 @@ export function AgentAvatar({
 }) {
   const gradientId = `sand-avatar-${useId().replace(/:/g, "")}`;
   const ink = resolveAgentAvatarColor(agentId, color);
-  const resolvedShape = shape === "tablet" || shape === "blob"
-    ? shape
-    : AGENT_AVATAR_SHAPES[hash(agentId) % AGENT_AVATAR_SHAPES.length];
+  const resolvedShape = resolveAgentAvatarShape(agentId, shape);
   const path = resolvedShape === "tablet" ? TABLET_PATH : BLOB_PATH;
   const happy = state === "happy" || state === "receiving";
   const style = { "--sand-avatar-size": `${size}px` } as CSSProperties;

@@ -11,7 +11,8 @@
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "build": "tsc -p tsconfig.json --noEmit"
+    "build": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@nuum/protocol": "workspace:*",
