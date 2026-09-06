@@ -51,6 +51,9 @@ export const HostMethods = {
   workDispatch: "work.dispatch",
   workCatalogAdd: "work.catalog.add",
   workCatalogRemove: "work.catalog.remove",
+  proactiveGet: "proactive.get",
+  proactiveConfigure: "proactive.configure",
+  proactiveCheck: "proactive.check",
   toolsList: "tools.list"
 } as const;
 
@@ -66,6 +69,8 @@ export const HostEvents = {
   workUpdated: "work.updated",
   workEventAppended: "work.event.appended",
   workCatalogUpdated: "work.catalog.updated",
+  proactiveUpdated: "proactive.updated",
+  settingsUpdated: "settings.updated",
   kernelDown: "host.kernel.down"
 } as const;
 

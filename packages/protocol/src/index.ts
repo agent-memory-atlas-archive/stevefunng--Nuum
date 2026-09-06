@@ -7,3 +7,5 @@ export * from "./product-tools.js";
 export * from "./rpc-frame.js";
 export * from "./transcript.js";
 export * from "./work.js";
+
+export * from "./proactive.js";

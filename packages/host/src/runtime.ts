@@ -60,6 +60,7 @@ import {
   type WorkTaskView,
   type WorkUpdateParams
 } from "@nuum/protocol";
+import { ProactiveService } from "./proactive.js";
 import { AgentStore, type AgentRecord } from "./agent-store.js";
 import {
   COMPACTION_PROMPT,
@@ -127,6 +128,7 @@ export class HostRuntime implements Partial<DelegateHost> {
   readonly store: AgentStore;
   readonly workStore: WorkStore;
   readonly scheduler: AgentScheduler;
+  readonly proactive: ProactiveService;
   private settings!: Settings;
   private kernel: KernelClient | null = null;
   /** 运行态只活在内存里 —— 进程重启后一律回到 idle，磁盘上不存在假 running。 */
@@ -154,6 +156,10 @@ export class HostRuntime implements Partial<DelegateHost> {
   constructor(private readonly options: HostRuntimeOptions) {
     this.store = new AgentStore(options.dataDir);
     this.workStore = new WorkStore(options.dataDir);
+    this.proactive = new ProactiveService(this.store, () => this.settings.defaultModel, (agentId) => {
+      if (agentId && this.store.getAgent(agentId)) this.background(this.viewFor(this.store.requireAgent(agentId)).then((agent) => this.emit(HostEvents.agentUpdated, { agent })));
+      this.emit(HostEvents.proactiveUpdated, {});
+    });
     this.scheduler = new AgentScheduler(options.maxConcurrentRuns ?? DEFAULT_MAX_CONCURRENT_RUNS);
     // 产品工具（§5.2）由 runtime 自己装：它们的副作用全在 runtime 上，没有
     // 别处能提供。options.delegatedTools 留给测试往里塞额外的桩。
@@ -171,11 +177,13 @@ export class HostRuntime implements Partial<DelegateHost> {
     await this.workStore.init();
     this.settings = await this.store.readSettings();
     this.attachKernel();
+    this.proactive.start();
     // 重放放最后：它要 kernel 在位，而且不该拖慢 RPC 上线。
     this.background(this.replayPendingWakes());
   }
 
   async dispose(): Promise<void> {
+    await this.proactive.dispose();
     await Promise.allSettled([...this.pending, ...this.kernelEventChains.values()]);
     this.kernel?.dispose();
     this.kernel = null;
@@ -223,6 +231,7 @@ export class HostRuntime implements Partial<DelegateHost> {
       ...(patch.sidebar !== undefined ? { sidebar: patch.sidebar } : {})
     };
     await this.store.writeSettings(this.settings);
+    this.emit(HostEvents.settingsUpdated, this.getPublicSettings());
     return this.getPublicSettings();
   }
 
@@ -304,7 +313,9 @@ export class HostRuntime implements Partial<DelegateHost> {
     this.recordedCalls.delete(id);
     this.callOrigins.delete(id);
     this.clearAgentPending(id);
+    await this.proactive.forget(id);
     await this.store.deleteAgent(id);
+    this.emit(HostEvents.proactiveUpdated, {});
     return { ok: true };
   }
 

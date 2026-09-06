@@ -1,3 +1,5 @@
+import { ProactiveTray } from "./proactive-tray.js";
+import { HostEvents, DesktopEvents, AgentIdParams } from "@nuum/protocol";
 import { app, BrowserWindow, dialog, Menu, ipcMain, safeStorage, shell } from "electron";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -24,10 +26,13 @@ mkdirSync(dataDir, { recursive: true });
 let host: ChildProcessWithoutNullStreams | null = null;
 let peer: JsonRpcPeer | null = null;
 let window: BrowserWindow | null = null;
+let proactiveTray: ProactiveTray | null = null;
+let quitting = false;
 
 let interfaceLanguage = "zh-CN";
 function installMenu(language: string): void {
   interfaceLanguage = language;
+  proactiveTray?.setLanguage(language);
   const label = (zh: string, en: string) => language === "en" ? en : zh;
   Menu.setApplicationMenu(Menu.buildFromTemplate([
     { label: "Nuum", submenu: [
@@ -62,6 +67,7 @@ function installMenu(language: string): void {
 }
 
 function sendToRenderer(method: string, params: unknown): void {
+  proactiveTray?.send(method, params);
   if (!window || window.isDestroyed()) return;
   try {
     window.webContents.send("host:event", method, params);
@@ -104,10 +110,12 @@ function startHost(): JsonRpcPeer {
     host = null;
     peer = null;
     sendToRenderer("host.kernel.down", { reason: "host-exit" });
+    void proactiveTray?.refresh();
   });
   const next = new JsonRpcPeer(createStdioDuplex(child.stdout, child.stdin));
   next.onEvent((method, params) => {
     sendToRenderer(method, params);
+    if (method === HostEvents.proactiveUpdated) void proactiveTray?.refresh();
   });
   peer = next;
   return next;
@@ -128,6 +136,9 @@ function createWindow(): void {
       nodeIntegration: false,
       sandbox: false
     }
+  });
+  window.on("close", (event) => {
+    if (!quitting && proactiveTray) { event.preventDefault(); window?.hide(); }
   });
   window.on("closed", () => {
     window = null;
@@ -153,6 +164,32 @@ app.whenReady().then(async () => {
   const preferences = await hostPeer.request("settings.get") as { language?: string };
   installMenu(preferences.language ?? "zh-CN");
   createWindow();
+  proactiveTray = new ProactiveTray(here, async (method) => {
+    if (!peer) throw new Error("Host is not running");
+    return peer.request(method);
+  }, showMainWindow, () => app.quit());
+  proactiveTray.setLanguage(interfaceLanguage);
+});
+
+function showMainWindow(): void {
+  if (!window || window.isDestroyed()) createWindow();
+  if (window?.isMinimized()) window.restore();
+  window?.show(); window?.focus();
+}
+app.on("activate", showMainWindow);
+
+ipcMain.handle(DesktopMethods.proactiveShow, () => proactiveTray?.show());
+ipcMain.handle(DesktopMethods.mainShow, () => { proactiveTray?.hide(); showMainWindow(); });
+ipcMain.handle(DesktopMethods.appQuit, () => app.quit());
+ipcMain.handle(DesktopMethods.proactiveOpenAgent, async (_event, raw) => {
+  const { id } = AgentIdParams.parse({ id: raw?.agentId });
+  if (!peer) throw new Error("Host is not running");
+  await peer.request("agent.get", { id });
+  proactiveTray?.hide();
+  showMainWindow();
+  const send = () => sendToRenderer(DesktopEvents.navigateAgent, { agentId: id });
+  if (window?.webContents.isLoading()) window.webContents.once("did-finish-load", send);
+  else send();
 });
 
 ipcMain.handle("host:request", async (_event, method: string, params: unknown) => {
@@ -199,10 +236,11 @@ function stopHost(): void {
   child?.kill("SIGTERM");
 }
 
-app.on("window-all-closed", () => {
-  stopHost();
-  app.quit();
-});
+app.on("window-all-closed", () => { if (quitting || !proactiveTray) app.quit(); });
 
 // Cmd+Q 不经过 window-all-closed。父进程被强杀的情况由 Host 自己的 stdin 关闭兜底。
-app.on("before-quit", stopHost);
+app.on("before-quit", () => {
+  quitting = true;
+  proactiveTray?.destroy(); proactiveTray = null;
+  stopHost();
+});

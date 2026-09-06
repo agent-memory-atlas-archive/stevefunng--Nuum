@@ -1094,5 +1094,169 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
   "Dark": {
     "zh-CN": "深色",
     "en": "Dark"
+  },
+  "Proactive is off": {
+    "zh-CN": "尚未开启",
+    "en": "Proactive is off"
+  },
+  "Taking a pause": {
+    "zh-CN": "暂停中",
+    "en": "Taking a pause"
+  },
+  "Waiting for context": {
+    "zh-CN": "等待接入上下文",
+    "en": "Waiting for context"
+  },
+  "Ready to check": {
+    "zh-CN": "已就绪",
+    "en": "Ready to check"
+  },
+  "Checking context": {
+    "zh-CN": "正在检查上下文",
+    "en": "Checking context"
+  },
+  "Check needs attention": {
+    "zh-CN": "检查遇到问题",
+    "en": "Check needs attention"
+  },
+  "Proactive enabled": {
+    "zh-CN": "已开启 proactive mode",
+    "en": "Proactive enabled"
+  },
+  "Proactive disabled": {
+    "zh-CN": "已关闭 proactive mode",
+    "en": "Proactive disabled"
+  },
+  "Paused": {
+    "zh-CN": "已暂停",
+    "en": "Paused"
+  },
+  "Resumed": {
+    "zh-CN": "已恢复",
+    "en": "Resumed"
+  },
+  "Configuration updated": {
+    "zh-CN": "已更新配置",
+    "en": "Configuration updated"
+  },
+  "No context sources connected": {
+    "zh-CN": "尚未接入上下文来源",
+    "en": "No context sources connected"
+  },
+  "Context ready; actions not connected": {
+    "zh-CN": "上下文已就绪，行动能力尚未接入",
+    "en": "Context ready; actions not connected"
+  },
+  "No new context": {
+    "zh-CN": "暂无新的上下文",
+    "en": "No new context"
+  },
+  "Context check failed": {
+    "zh-CN": "上下文检查失败",
+    "en": "Context check failed"
+  },
+  "Connecting to Nuum…": {
+    "zh-CN": "正在连接 Nuum…",
+    "en": "Connecting to Nuum…"
+  },
+  "Your companion will resume after this break.": {
+    "zh-CN": "休息一下，到时会自动恢复。",
+    "en": "Your companion will resume after this break."
+  },
+  "A quieter kind of help, at the right moment.": {
+    "zh-CN": "在合适的时候，主动帮上一点忙。",
+    "en": "A quieter kind of help, at the right moment."
+  },
+  "Proactive mode": {
+    "zh-CN": "Proactive mode",
+    "en": "Proactive mode"
+  },
+  "Enable proactive mode": {
+    "zh-CN": "开启 proactive mode",
+    "en": "Enable proactive mode"
+  },
+  "Resume now": {
+    "zh-CN": "立即恢复",
+    "en": "Resume now"
+  },
+  "Pause proactive mode": {
+    "zh-CN": "暂停 proactive mode",
+    "en": "Pause proactive mode"
+  },
+  "Pause…": {
+    "zh-CN": "暂停…",
+    "en": "Pause…"
+  },
+  "For 30 minutes": {
+    "zh-CN": "暂停 30 分钟",
+    "en": "For 30 minutes"
+  },
+  "For 1 hour": {
+    "zh-CN": "暂停 1 小时",
+    "en": "For 1 hour"
+  },
+  "Check setup": {
+    "zh-CN": "检查基座",
+    "en": "Check setup"
+  },
+  "Resumes at {time}": {
+    "zh-CN": "将在 {time} 恢复",
+    "en": "Resumes at {time}"
+  },
+  "Connections": {
+    "zh-CN": "连接状态",
+    "en": "Connections"
+  },
+  "Context sources": {
+    "zh-CN": "上下文来源",
+    "en": "Context sources"
+  },
+  "Available": {
+    "zh-CN": "可用",
+    "en": "Available"
+  },
+  "Not connected": {
+    "zh-CN": "尚未接入",
+    "en": "Not connected"
+  },
+  "Agent actions": {
+    "zh-CN": "Nu-nu 行动",
+    "en": "Nu-nu actions"
+  },
+  "Setup is ready. Context collection and autonomous actions are not enabled in this version.": {
+    "zh-CN": "基座已就绪。本版暂不采集上下文，也不自动执行行动。",
+    "en": "Setup is ready. Context collection and autonomous actions are not enabled in this version."
+  },
+  "Recent activity": {
+    "zh-CN": "最近活动",
+    "en": "Recent activity"
+  },
+  "Activity will appear here when you turn it on.": {
+    "zh-CN": "开启后，活动记录会显示在这里。",
+    "en": "Activity will appear here when you turn it on."
+  },
+  "Could not update proactive mode.": {
+    "zh-CN": "暂时无法更新 proactive mode。",
+    "en": "Could not update proactive mode."
+  },
+  "Open Nu-nu": {
+    "zh-CN": "打开 Nu-nu",
+    "en": "Open Nu-nu"
+  },
+  "Open Nuum": {
+    "zh-CN": "打开 Nuum",
+    "en": "Open Nuum"
+  },
+  "Quit": {
+    "zh-CN": "退出",
+    "en": "Quit"
+  },
+  "Manage your proactive companion from the menu bar.": {
+    "zh-CN": "在菜单栏管理主动陪伴你的 Nu-nu。",
+    "en": "Manage your proactive companion from the menu bar."
+  },
+  "Open menu bar panel": {
+    "zh-CN": "打开菜单栏面板",
+    "en": "Open menu bar panel"
   }
 };

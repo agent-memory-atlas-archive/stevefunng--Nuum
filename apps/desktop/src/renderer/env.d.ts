@@ -6,6 +6,10 @@ export interface NuumBridge {
     onEvent(listener: (method: string, params: unknown) => void): () => void;
   };
   desktop: {
+    showProactive(): Promise<void>;
+    openProactiveAgent(agentId: string): Promise<void>;
+    showMain(): Promise<void>;
+    quit(): Promise<void>;
     pickWorkspace(): Promise<string | null>;
     getSecrets(): Promise<SecretsState>;
     setSecrets(secrets: SecretsState): Promise<unknown>;

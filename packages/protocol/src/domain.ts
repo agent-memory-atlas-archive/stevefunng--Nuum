@@ -1,3 +1,4 @@
+import { ProactivePolicy } from "./proactive.js";
 import { z } from "zod";
 import { WorkMembership } from "./work.js";
 
@@ -96,6 +97,7 @@ export const AgentSettings = z.object({
     toolPermission: ToolPermission.nullable()
   }).optional(),
   hiddenFromSidebar: z.boolean().optional(),
+  proactive: ProactivePolicy.optional(),
   workMembership: WorkMembership.optional()
 });
 export type AgentSettings = z.infer<typeof AgentSettings>;

@@ -1,4 +1,6 @@
 import {
+  ProactiveConfigureParams,
+  ProactiveCheckParams,
   AgentCreateParams,
   AgentIdParams,
   AgentSendParams,
@@ -104,6 +106,12 @@ export async function createHostServer(options: HostRuntimeOptions): Promise<Hos
         return runtime.addWorkCatalogEntry(WorkCatalogAddParams.parse(raw));
       case HostMethods.workCatalogRemove:
         return runtime.removeWorkCatalogEntry(WorkCatalogRemoveParams.parse(raw));
+      case HostMethods.proactiveGet:
+        return runtime.proactive.snapshot();
+      case HostMethods.proactiveConfigure:
+        return runtime.proactive.configure(ProactiveConfigureParams.parse(raw));
+      case HostMethods.proactiveCheck:
+        return runtime.proactive.check(ProactiveCheckParams.parse(raw).agentId);
       case HostMethods.toolsList:
         return runtime.tools();
       default:

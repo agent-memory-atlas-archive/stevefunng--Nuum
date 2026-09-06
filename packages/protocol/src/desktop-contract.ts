@@ -2,6 +2,10 @@ import { z } from "zod";
 import { ThemePreference } from "./domain.js";
 
 export const DesktopMethods = {
+  proactiveShow: "proactive.show",
+  proactiveOpenAgent: "proactive.openAgent",
+  mainShow: "main.show",
+  appQuit: "app.quit",
   windowMinimize: "window.minimize",
   windowToggleMaximize: "window.toggleMaximize",
   windowClose: "window.close",
@@ -36,3 +40,5 @@ export const OpenExternalParams = z.object({
   url: z.string().url()
 });
 export type OpenExternalParams = z.infer<typeof OpenExternalParams>;
+
+export const DesktopEvents = { navigateAgent: "desktop.navigateAgent" } as const;

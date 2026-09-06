@@ -1,0 +1,36 @@
+.nuum-proactive-panel { box-sizing: border-box; width: 100%; height: 100dvh; overflow-y: auto; padding: 20px; background: var(--nuum-bg-elevated); color: var(--nuum-text-primary); font: 13px/1.5 var(--nuum-font-family-sans); scrollbar-width: thin; }
+.nuum-proactive-panel button { cursor: pointer; }
+.nuum-proactive-panel button:disabled { opacity: .4; cursor: default; }
+.nuum-proactive-heading { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 18px; color: var(--nuum-text-secondary); font-size: 11px; }
+.nuum-proactive-wordmark { color: var(--nuum-text-primary); font-size: 17px; font-weight: 650; letter-spacing: -.5px; }
+.nuum-proactive-status { padding: 17px 16px 0; border-radius: 16px; background: color-mix(in srgb, var(--nuum-text-primary) 4%, transparent); }
+.nuum-proactive-status__top { display: flex; align-items: center; gap: 6px; color: var(--nuum-text-secondary); font-size: 11px; }
+.nuum-proactive-status__dot { width: 6px; height: 6px; border-radius: 50%; background: var(--nuum-text-tertiary); }
+.nuum-proactive-status[data-state="waiting-context"] .nuum-proactive-status__dot, .nuum-proactive-status[data-state="ready"] .nuum-proactive-status__dot { background: #80856b; }
+.nuum-proactive-status[data-state="paused"] .nuum-proactive-status__dot { background: #aa8a52; }
+.nuum-proactive-status[data-state="error"] .nuum-proactive-status__dot { background: #bd615a; }
+.nuum-proactive-status h1 { margin: 10px 0 4px; font-size: 23px; line-height: 1.25; font-weight: 600; letter-spacing: -.6px; }
+.nuum-proactive-status p { color: var(--nuum-text-secondary); font-size: 12px; margin: 0 0 16px; }
+.nuum-proactive-toggle-row { border-top: 1px solid var(--nuum-stroke-tertiary); display: flex; justify-content: space-between; align-items: center; min-height: 48px; }
+.nuum-proactive-panel .sand-switch { transform: scale(.88); transform-origin: right center; }
+.nuum-proactive-panel .sand-switch[aria-checked="true"] { background: var(--nuum-text-primary); }
+.nuum-proactive-tools { display: flex; gap: 8px; margin-top: 12px; }
+.nuum-proactive-tools > button { flex: 1; justify-content: center; }
+.nuum-proactive-secondary, .nuum-proactive-tools .sand-settings-select { padding: 7px 10px; border-radius: 10px; border: 1px solid var(--nuum-stroke-tertiary); background: transparent; color: inherit; font: inherit; font-size: 12px; }
+.nuum-proactive-tools button:hover:not(:disabled) { background: var(--sand-fill-ghost-hover); }
+.nuum-proactive-resume { color: var(--nuum-text-secondary); font-size: 11px; margin: 8px 0 0; text-align: center; }
+.nuum-proactive-readiness { margin-top: 20px; }
+.nuum-proactive-readiness > div { display: flex; justify-content: space-between; margin: 6px 0; font-size: 12px; }
+.nuum-proactive-readiness small { color: var(--nuum-text-secondary); font-size: 11px; }
+.nuum-proactive-readiness p, .nuum-proactive-activity > p { color: var(--nuum-text-tertiary); font-size: 11px; margin: 8px 0 0; }
+.nuum-proactive-activity { margin: 18px 0; }
+.nuum-proactive-activity h2 { font-size: 11px; font-weight: 500; margin: 0 0 8px; color: var(--nuum-text-secondary); }
+.nuum-proactive-activity ol { list-style: none; margin: 0; padding: 0; }
+.nuum-proactive-activity li { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 11px; }
+.nuum-proactive-activity time { flex-shrink: 0; color: var(--nuum-text-tertiary); }
+.nuum-proactive-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; border-top: 1px solid var(--nuum-stroke-tertiary); }
+.nuum-proactive-footer button { display: flex; align-items: center; gap: 6px; background: none; border: 0; padding: 3px 0; color: var(--nuum-text-secondary); font: inherit; font-size: 12px; }
+.nuum-proactive-footer button:first-child { color: var(--nuum-text-primary); }
+.nuum-proactive-error { color: #b85850; font-size: 11px; margin: 12px 0; }
+.nuum-proactive-error button { background: none; border: 0; color: inherit; text-decoration: underline; }
+.nuum-proactive-panel :is(button):focus-visible { outline: 2px solid var(--nuum-text-secondary); outline-offset: 3px; }

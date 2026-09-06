@@ -1,5 +1,6 @@
 import { t, useLanguage, setLanguage } from "@nuum/ui";
 import {
+  DesktopEvents,
   HostEvents,
   HostMethods,
   DEFAULT_MODEL_ID,
@@ -150,6 +151,16 @@ export function App() {
     void refresh();
     return window.nuum.host.onEvent((method, params) => {
       const payload = params as Record<string, any>;
+      if (method === DesktopEvents.navigateAgent && typeof payload.agentId === "string") {
+        setSettingsOpen(false);
+        void openAgent(payload.agentId);
+      }
+      if (method === HostEvents.settingsUpdated) {
+        const preferences = params as PublicSettings;
+        setSettings(preferences);
+        setLanguage(preferences.language ?? "zh-CN");
+        setThemePref(preferences.theme ?? "dark");
+      }
       const agentId = typeof payload.agentId === "string" ? payload.agentId : "";
       if (method === HostEvents.agentUpdated && payload.agent) {
         setAgents((current) => upsert(current, payload.agent as AgentView));
@@ -706,6 +717,11 @@ export function App() {
                 </SettingsSelect>
               </div>
             </div>
+            </div></section>
+            <section className="sand-settings-group"><h3>Proactive mode</h3><div className="sand-settings-group__surface">
+              <div className="sand-settings-row"><div className="sand-settings-copy"><span>Nu-nu</span><small>{t("Manage your proactive companion from the menu bar.")}</small></div>
+                <div className="sand-settings-control"><button className="sand-kit-button" type="button" onClick={() => void window.nuum.desktop.showProactive()}>{t("Open menu bar panel")}</button></div>
+              </div>
             </div></section>
           </div>
         ) : (

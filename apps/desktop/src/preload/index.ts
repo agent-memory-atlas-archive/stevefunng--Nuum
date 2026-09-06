@@ -13,6 +13,10 @@ contextBridge.exposeInMainWorld("nuum", {
     }
   },
   desktop: {
+    showProactive: () => ipcRenderer.invoke(DesktopMethods.proactiveShow),
+    openProactiveAgent: (agentId: string) => ipcRenderer.invoke(DesktopMethods.proactiveOpenAgent, { agentId }),
+    showMain: () => ipcRenderer.invoke(DesktopMethods.mainShow),
+    quit: () => ipcRenderer.invoke(DesktopMethods.appQuit),
     pickWorkspace: () => ipcRenderer.invoke(DesktopMethods.workspacePick) as Promise<string | null>,
     getSecrets: () => ipcRenderer.invoke(DesktopMethods.secretsGet) as Promise<SecretsState>,
     setSecrets: (secrets: SecretsState) => ipcRenderer.invoke(DesktopMethods.secretsSet, secrets)
