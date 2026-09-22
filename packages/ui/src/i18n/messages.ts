@@ -55,6 +55,22 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "zh-CN": "侧栏操作",
     "en": "Sidebar actions"
   },
+  "Create new Nu-nu": {
+    "zh-CN": "创建新 Nu-nu",
+    "en": "Create new Nu-nu"
+  },
+  "Create work bar": {
+    "zh-CN": "创建 work bar",
+    "en": "Create work bar"
+  },
+  "Shuffle": {
+    "zh-CN": "换一个",
+    "en": "Shuffle"
+  },
+  "Hidden edition": {
+    "zh-CN": "隐藏款",
+    "en": "Hidden edition"
+  },
   "Close group dialog": {
     "zh-CN": "关闭分组窗口",
     "en": "Close group dialog"

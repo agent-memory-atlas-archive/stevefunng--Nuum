@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SandIcon, SandIconButton } from "../kit/sand-kit-primitives";
 import { AutoTextarea } from "../kit/auto-textarea";
-import { AGENT_AVATAR_COLORS, AGENT_AVATAR_SHAPES, AgentAvatar } from "./agent-avatar";
+import { AGENT_AVATAR_MATERIAL_HIDDEN, AgentAvatar, rollAgentAvatar } from "./agent-avatar";
 
 export interface PendingTool {
   toolCallId: string;
@@ -33,6 +33,7 @@ export interface ConversationWorkspaceProps {
     description: string;
     avatarColor: string;
     avatarShape: string;
+    avatarMaterial: string;
   }): void;
   onApprove(resolution: "always" | "once" | "deny" | "never"): void;
   notice?: string | null;
@@ -175,30 +176,44 @@ function AgentCreation({
   canCancel: boolean;
   error?: string | null;
   onCancel(): void;
-  onCreate(profile: { name: string; description: string; avatarColor: string; avatarShape: string }): void;
+  onCreate(profile: { name: string; description: string; avatarColor: string; avatarShape: string; avatarMaterial: string }): void;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [avatarColor, setAvatarColor] = useState("green");
-  const [avatarShape, setAvatarShape] = useState("blob");
+  // 形象在创建时随机定下（换一个可重摇），提交后写进 profile 永久绑定。
+  const [avatar, setAvatar] = useState(rollAgentAvatar);
   const submit = () => {
     if (!name.trim()) return;
-    onCreate({ name: name.trim(), description: description.trim(), avatarColor, avatarShape });
+    onCreate({
+      name: name.trim(),
+      description: description.trim(),
+      avatarColor: avatar.color,
+      avatarShape: avatar.shape,
+      avatarMaterial: avatar.material
+    });
   };
   return (
     <div className="sand-agent-create">
       <div className="sand-agent-create__hero">
-        <AgentAvatar
-          agentId={name || "new-agent"}
-          color={avatarColor}
-          shape={avatarShape}
-          size={92}
-          state="happy"
-        />
+        <div className="sand-agent-create__preview">
+          <AgentAvatar
+            agentId={name || "new-agent"}
+            color={avatar.color}
+            shape={avatar.shape}
+            material={avatar.material}
+            size={92}
+            state="happy"
+          />
+          {avatar.material === AGENT_AVATAR_MATERIAL_HIDDEN ? <span className="sand-agent-create__hidden">{t("Hidden edition")}</span> : null}
+        </div>
         <div>
           <span className="sand-agent-create__eyebrow">{t("A teammate with its own context")}</span>
           <h1>{t("Create an Agent")}</h1>
           <p>{t("Give it an ongoing job. It gets its own conversation, memory, and workspace.")}</p>
+          <button className="sand-agent-create__shuffle" onClick={() => setAvatar(rollAgentAvatar())} type="button">
+            <SandIcon name="shuffle" size={14} />
+            {t("Shuffle")}
+          </button>
         </div>
       </div>
       <div className="sand-agent-create__editor">
@@ -214,36 +229,6 @@ function AgentCreation({
             value={description}
           />
         </label>
-        <div className="sand-agent-create__appearance">
-          <span>{t("Character")}</span>
-          <div aria-label={t("Character color")} className="sand-agent-create__colors" role="radiogroup">
-            {AGENT_AVATAR_COLORS.map((color) => (
-              <button
-                aria-checked={avatarColor === color.id}
-                aria-label={t("{name} color", { name: t(color.id) })}
-                key={color.id}
-                onClick={() => setAvatarColor(color.id)}
-                role="radio"
-                style={{ background: color.value }}
-                type="button"
-              />
-            ))}
-          </div>
-          <div aria-label={t("Character shape")} className="sand-agent-create__shapes" role="radiogroup">
-            {AGENT_AVATAR_SHAPES.map((shape) => (
-              <button
-                aria-checked={avatarShape === shape}
-                aria-label={t("{name} shape", { name: t(shape) })}
-                key={shape}
-                onClick={() => setAvatarShape(shape)}
-                role="radio"
-                type="button"
-              >
-                <AgentAvatar agentId={`shape-${shape}`} color={avatarColor} shape={shape} size={28} />
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
       <div className="sand-agent-create__suggestions">
         <span>{t("Or start with a role")}</span>
@@ -322,6 +307,7 @@ export function ConversationWorkspace({
                 agentId={agent.profile.id}
                 color={agent.profile.avatarColor}
                 shape={agent.profile.avatarShape}
+                material={agent.profile.avatarMaterial}
                 size={28}
                 state={agent.runtime.status === "running" ? "working" : "idle"}
               />
@@ -364,6 +350,19 @@ export function ConversationWorkspace({
         )}
       </div>
       <div className="sand-chat-input-dock">
+        {agent && agent.runtime.status === "running" ? (
+          <div className="sand-chat-working" role="status">
+            <AgentAvatar
+              agentId={agent.profile.id}
+              color={agent.profile.avatarColor}
+              shape={agent.profile.avatarShape}
+              material={agent.profile.avatarMaterial}
+              size={30}
+              state="working"
+            />
+            <span className="sand-chat-working__label">{t("Working")}</span>
+          </div>
+        ) : null}
         {pendingTool ? (
           <div className="sand-permission-dock">
             <div>

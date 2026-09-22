@@ -10,6 +10,16 @@ export const WorkProfile = z.object({
 });
 export type WorkProfile = z.infer<typeof WorkProfile>;
 
+/**
+ * work.list 的侧栏视图：profile 之上叠加派生数据 —— 最近动态时间与最近一条
+ * 群聊摘要。成员不在此列，UI 依据 agents 的 workMembership 现场归组。
+ */
+export const WorkListItem = WorkProfile.extend({
+  lastActivityAt: z.number(),
+  preview: z.string().optional()
+});
+export type WorkListItem = z.infer<typeof WorkListItem>;
+
 export const WorkRole = z.enum(["coordinator", "worker", "observer"]);
 export type WorkRole = z.infer<typeof WorkRole>;
 

@@ -1,8 +1,10 @@
 import { t } from "../i18n";
+import type { AgentView, WorkListItem } from "@nuum/protocol";
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { SandIcon } from "../kit/sand-kit-primitives";
 import type { SandIconName } from "../kit/sand-icon-registry";
+import { AgentAvatar, WorkGroupAvatar } from "./agent-avatar";
 
 export interface SidebarMenuItem { label: string; icon?: SandIconName; disabled?: boolean; separator?: boolean; onSelect(): void }
 
@@ -37,6 +39,78 @@ export function SidebarMenu({ point, items, onClose }: {
     {items.map((item, index) => <div key={`${item.label}-${index}`}>{item.separator ? <div role="separator" /> : null}<button role="menuitem" type="button" disabled={item.disabled} onClick={item.onSelect}>
       {item.icon ? <SandIcon name={item.icon} size={14} /> : <span className="sand-sidebar-menu__icon-space" />}<span>{item.label}</span>
     </button></div>)}
+  </div>, document.body);
+}
+
+// "+"菜单：复刻 Grok Bot 的新建下拉 —— 两个动作行 + 已有 Nunu / Work Bar 罗列。
+export function SidebarNewMenu({ anchor, agents, works, activeId, activeWorkId, onNewAgent, onNewWork, onOpen, onOpenWork, onClose }: {
+  anchor: { left: number; top: number; width: number };
+  agents: readonly AgentView[];
+  works: readonly (WorkListItem & { memberIds: readonly string[] })[];
+  activeId: string | null;
+  activeWorkId: string | null;
+  onNewAgent(): void;
+  onNewWork(): void;
+  onOpen(id: string): void;
+  onOpenWork(id: string): void;
+  onClose(): void;
+}) {
+  const menu = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ x: anchor.left, y: anchor.top, width: anchor.width });
+  useLayoutEffect(() => {
+    const element = menu.current;
+    if (!element) return;
+    setPosition({
+      x: Math.max(8, Math.min(anchor.left, window.innerWidth - element.offsetWidth - 8)),
+      y: Math.max(8, Math.min(anchor.top, window.innerHeight - element.offsetHeight - 8)),
+      width: anchor.width
+    });
+    element.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
+  }, [anchor.left, anchor.top, anchor.width]);
+  useEffect(() => {
+    const outside = (event: PointerEvent) => {
+      const target = event.target as Element | null;
+      // 点击触发按钮本身交给按钮的 toggle 逻辑，避免“关了又立刻开”。
+      if (menu.current?.contains(event.target as Node) || target?.closest?.("[data-new-menu-toggle]")) return;
+      onClose();
+    };
+    document.addEventListener("pointerdown", outside, true);
+    window.addEventListener("blur", onClose);
+    window.addEventListener("resize", onClose);
+    return () => { document.removeEventListener("pointerdown", outside, true); window.removeEventListener("blur", onClose); window.removeEventListener("resize", onClose); };
+  }, [onClose]);
+  const rows: { key: string; kind: "action" | "agent" | "work"; label: string; icon?: SandIconName; agent?: AgentView; work?: WorkListItem & { memberIds: readonly string[] }; active?: boolean; onSelect(): void }[] = [
+    { key: "new-nunu", kind: "action", label: t("Create new Nu-nu"), icon: "plus", onSelect: onNewAgent },
+    { key: "new-work", kind: "action", label: t("Create work bar"), icon: "people", onSelect: onNewWork },
+    ...agents.map((agent) => ({
+      key: agent.profile.id, kind: "agent" as const, label: agent.profile.name, agent,
+      active: agent.profile.id === activeId, onSelect: () => onOpen(agent.profile.id)
+    })),
+    ...works.map((work) => ({
+      key: work.id, kind: "work" as const, label: work.name, work,
+      active: work.id === activeWorkId, onSelect: () => onOpenWork(work.id)
+    }))
+  ];
+  return createPortal(<div ref={menu} className="sand-new-menu" role="menu" aria-label={t("New")} style={{ left: position.x, top: position.y, width: position.width }} onContextMenu={(event) => event.preventDefault()}
+    onKeyDown={(event) => {
+      if (event.key === "Escape" || event.key === "Tab") { event.preventDefault(); onClose(); return; }
+      if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const buttons = [...event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)")];
+      const current = buttons.indexOf(document.activeElement as HTMLButtonElement);
+      const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (current + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next]?.focus();
+    }}>
+    {rows.map((row) => <button key={row.key} role="menuitem" type="button" className="sand-new-menu__row" data-active={row.active || undefined} onClick={() => { onClose(); row.onSelect(); }}>
+      {row.kind === "action" ? <span className="sand-new-menu__chip"><SandIcon name={row.icon!} size={12} /></span>
+        : row.kind === "agent" && row.agent ? <span className="sand-new-menu__avatar"><AgentAvatar agentId={row.agent.profile.id} color={row.agent.profile.avatarColor} shape={row.agent.profile.avatarShape} material={row.agent.profile.avatarMaterial} size={22} /></span>
+        : <span className="sand-new-menu__avatar">
+            {row.work && row.work.memberIds.length
+              ? <WorkGroupAvatar memberIds={row.work.memberIds} agents={agents} size={22} />
+              : <span className="sand-new-menu__avatar--work">{row.label.slice(0, 1).toUpperCase()}</span>}
+          </span>}
+      <span className="sand-new-menu__label">{row.label}</span>
+    </button>)}
   </div>, document.body);
 }
 

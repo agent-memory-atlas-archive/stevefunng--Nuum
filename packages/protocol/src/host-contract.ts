@@ -243,6 +243,7 @@ export const AgentCreateParams = z.object({
   tags: AgentTags.optional(),
   avatarColor: z.string().optional(),
   avatarShape: z.string().optional(),
+  avatarMaterial: z.string().optional(),
   model: ModelRef.optional(),
   workspace: AgentSettings.shape.workspace.optional()
 });
@@ -259,6 +260,7 @@ export const AgentUpdateParams = z.object({
   tags: AgentTags.optional(),
   avatarColor: z.string().optional(),
   avatarShape: z.string().optional(),
+  avatarMaterial: z.string().optional(),
   model: ModelRef.optional(),
   workspace: AgentSettings.shape.workspace.optional(),
   hiddenFromSidebar: z.boolean().optional()

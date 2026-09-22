@@ -51,6 +51,7 @@ import {
   type WorkMemberMoveParams,
   type WorkPostMessageParams,
   type WorkProfile,
+  type WorkListItem,
   type WorkRole,
   type WorkSnapshot,
   type WorkTask,
@@ -254,6 +255,7 @@ export class HostRuntime implements Partial<DelegateHost> {
         ...(params.tags !== undefined ? { tags: params.tags } : {}),
         ...(params.avatarColor ? { avatarColor: params.avatarColor } : {}),
         ...(params.avatarShape ? { avatarShape: params.avatarShape } : {}),
+        ...(params.avatarMaterial ? { avatarMaterial: params.avatarMaterial } : {}),
         createdAt: now
       },
       settings
@@ -288,6 +290,7 @@ export class HostRuntime implements Partial<DelegateHost> {
     if (params.tags !== undefined) profile.tags = params.tags;
     if (params.avatarColor !== undefined) profile.avatarColor = params.avatarColor;
     if (params.avatarShape !== undefined) profile.avatarShape = params.avatarShape;
+    if (params.avatarMaterial !== undefined) profile.avatarMaterial = params.avatarMaterial;
     const settings: Record<string, unknown> = {};
     if (params.model !== undefined) settings.model = params.model;
     if (params.workspace !== undefined) settings.workspace = params.workspace;
@@ -339,8 +342,16 @@ export class HostRuntime implements Partial<DelegateHost> {
     return profile;
   }
 
-  listWorks(): WorkProfile[] {
-    return this.workStore.listWorks();
+  async listWorks(): Promise<WorkListItem[]> {
+    // 成员不在 list 里：UI 依据 agents 的 workMembership 现场归组，避免两份真源。
+    return Promise.all(this.workStore.listWorks().map(async (profile) => {
+      const activity = await this.workStore.readActivity(profile.id);
+      return {
+        ...profile,
+        lastActivityAt: Math.max(activity.lastActivityAt, profile.createdAt),
+        ...(activity.preview ? { preview: activity.preview } : {})
+      };
+    }));
   }
 
   async updateWork(params: WorkUpdateParams): Promise<WorkProfile> {

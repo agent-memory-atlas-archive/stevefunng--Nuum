@@ -29,6 +29,14 @@
 .sand-sidebar-menu button:disabled { cursor: default; opacity: .35; }
 .sand-sidebar-menu [role="separator"] { height: 1px; margin: 4px 6px; background: var(--nuum-stroke-tertiary); }
 .sand-sidebar-menu__icon-space { flex: 0 0 14px; }
+/* "+"新建菜单：样式取自 Grok Bot 的创建 Bot 下拉（14px 圆角、36px 行、24px 圆形图标 chip）。 */
+.sand-new-menu { position: fixed; z-index: 2000; max-height: min(420px, calc(100vh - 16px)); overflow-y: auto; padding: 6px; color: var(--nuum-text-primary); background: var(--nuum-bg-elevated); border: 0.5px solid var(--nuum-stroke-secondary); border-radius: 14px; box-shadow: rgba(0, 0, 0, 0.1) 0 4px 6px -4px, rgba(0, 0, 0, 0.1) 0 10px 20px -3px; -webkit-app-region: no-drag; }
+.sand-new-menu__row { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 36px; padding: 6px 8px; border: 0; border-radius: 8px; color: inherit; background: transparent; font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.sand-new-menu__row:hover, .sand-new-menu__row:focus-visible { outline: none; background: var(--nuum-bg-secondary); }
+.sand-new-menu__chip { display: inline-flex; flex: 0 0 24px; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 9999px; background: color-mix(in srgb, var(--nuum-base) 9%, transparent); color: var(--nuum-text-tertiary); }
+.sand-new-menu__avatar { display: inline-flex; flex: 0 0 24px; align-items: center; justify-content: center; width: 24px; height: 24px; }
+.sand-new-menu__avatar--work { border-radius: 8px; background: var(--nuum-bg-secondary); border: 1px solid var(--nuum-stroke-tertiary); color: var(--nuum-text-primary); font-size: 11px; font-weight: 650; }
+.sand-new-menu__label { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .sand-sidebar-dialog { width: min(380px, calc(100vw - 48px)); padding: 24px; color: var(--nuum-text-primary); background: var(--nuum-bg-editor); border: 1px solid var(--nuum-stroke-secondary); border-radius: 16px; box-shadow: 0 16px 60px -15px var(--nuum-shadow-primary); }
 .sand-sidebar-dialog::backdrop { background: #00000020; }
 .sand-sidebar-dialog form { display: grid; gap: 22px; }

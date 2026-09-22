@@ -17,7 +17,9 @@ import {
   type ToolPermission,
   type ToolResolution,
   type TranscriptEvent,
+  type ViewBlock,
   type WorkCatalogAddParams,
+  type WorkListItem,
   type WorkProfile,
   type WorkSnapshot
 } from "@nuum/protocol";
@@ -86,7 +88,10 @@ export function App() {
   const [languageError, setLanguageError] = useState("");
   useEffect(() => { document.documentElement.lang = language; }, [language]);
   const [agents, setAgents] = useState<AgentView[]>([]);
-  const [works, setWorks] = useState<WorkProfile[]>([]);
+  const [works, setWorks] = useState<WorkListItem[]>([]);
+  // 侧栏 subtitle 的最近一句话：用既有 RPC 拉一小页转录，经 projectAgent 投影后
+  // 取最后一条用户可见的对话内容。口径与聊天页同源（单一投影），host 不做第二套解释。
+  const [previews, setPreviews] = useState<Record<string, string>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeWorkId, setActiveWorkId] = useState<string | null>(null);
   const [workSnapshot, setWorkSnapshot] = useState<WorkSnapshot | null>(null);
@@ -164,6 +169,7 @@ export function App() {
       const agentId = typeof payload.agentId === "string" ? payload.agentId : "";
       if (method === HostEvents.agentUpdated && payload.agent) {
         setAgents((current) => upsert(current, payload.agent as AgentView));
+        void loadPreview((payload.agent as AgentView).profile.id);
       }
       if (method === HostEvents.agentMessageDelta && agentId) {
         setPanes((current) => applyPanePatch(current, agentId, (pane) => {
@@ -212,7 +218,8 @@ export function App() {
         }));
       }
       if (method === HostEvents.workUpdated && payload.work) {
-        setWorks((current) => upsertWork(current, payload.work as WorkProfile));
+        // workUpdated 只带 profile；侧栏要的预览/最近动态以重拉列表为准。
+        void refreshWorks();
       }
       if (
         (method === HostEvents.workEventAppended || method === HostEvents.workCatalogUpdated) &&
@@ -227,7 +234,7 @@ export function App() {
   async function refresh(): Promise<void> {
     const [list, workList, publicSettings] = await Promise.all([
       window.nuum.host.request(HostMethods.agentList) as Promise<AgentView[]>,
-      window.nuum.host.request(HostMethods.workList) as Promise<WorkProfile[]>,
+      window.nuum.host.request(HostMethods.workList) as Promise<WorkListItem[]>,
       window.nuum.host.request(HostMethods.settingsGet) as Promise<PublicSettings>
     ]);
     setAgents(list);
@@ -235,6 +242,7 @@ export function App() {
     setSettings(publicSettings);
     setLanguage(publicSettings.language ?? "zh-CN");
     setThemePref(publicSettings.theme ?? "dark");
+    void Promise.all(list.map((agent) => loadPreview(agent.profile.id)));
     const secrets = await window.nuum.desktop.getSecrets();
     setOpenaiKey(secrets.openaiApiKey ?? "");
     setAnthropicKey(secrets.anthropicApiKey ?? "");
@@ -276,6 +284,23 @@ export function App() {
     });
   }
 
+  async function refreshWorks(): Promise<void> {
+    const workList = await window.nuum.host.request(HostMethods.workList) as WorkListItem[];
+    setWorks(workList);
+  }
+
+  async function loadPreview(id: string): Promise<void> {
+    // 预览只是锦上添花：任何失败（如 agent 恰被删除）保持原值即可，绝不能产生未处理拒绝。
+    try {
+      const page = await window.nuum.host.request(HostMethods.agentGetTranscript, { id, limit: 40 }) as { entries: TranscriptEvent[] };
+      const text = extractPreviewText(projectAgent(page.entries).blocks);
+      if (!text) return;
+      setPreviews((current) => ({ ...current, [id]: text.replace(/\s+/g, " ").trim().slice(0, 160) }));
+    } catch {
+      // 保持现有 preview 不变。
+    }
+  }
+
   async function loadWork(id: string): Promise<void> {
     const snapshot = await window.nuum.host.request(HostMethods.workGet, { id }) as WorkSnapshot;
     setWorkSnapshot(snapshot);
@@ -315,7 +340,7 @@ export function App() {
       ...input,
       projectRoot: null
     }) as WorkProfile;
-    setWorks((current) => upsertWork(current, created));
+    await refreshWorks();
     await openWork(created.id);
   }
 
@@ -324,6 +349,7 @@ export function App() {
     description: string;
     avatarColor: string;
     avatarShape: string;
+    avatarMaterial: string;
   }): Promise<void> {
     setCreationError(null);
     try {
@@ -388,7 +414,7 @@ export function App() {
       await work();
       const [agentList, workList] = await Promise.all([
         window.nuum.host.request(HostMethods.agentList) as Promise<AgentView[]>,
-        window.nuum.host.request(HostMethods.workList) as Promise<WorkProfile[]>
+        window.nuum.host.request(HostMethods.workList) as Promise<WorkListItem[]>
       ]);
       setAgents(agentList);
       setWorks(workList);
@@ -474,6 +500,7 @@ export function App() {
           sidebarSave.current = save.catch(() => {});
           return save;
         }}
+        previews={previews}
         works={works}
         activeId={activeId}
         activeWorkId={activeWorkId}
@@ -824,8 +851,11 @@ function upsert(list: AgentView[], agent: AgentView): AgentView[] {
   );
 }
 
-function upsertWork(list: WorkProfile[], work: WorkProfile): WorkProfile[] {
-  return [work, ...list.filter((item) => item.id !== work.id)].sort(
-    (a, b) => b.createdAt - a.createdAt
-  );
+function extractPreviewText(blocks: readonly ViewBlock[]): string | undefined {
+  for (let index = blocks.length - 1; index >= 0; index -= 1) {
+    const block = blocks[index]!;
+    if (block.type === "user" || block.type === "peer") return block.text;
+    if (block.type === "message" && block.payload.type === "text") return block.payload.text;
+  }
+  return undefined;
 }

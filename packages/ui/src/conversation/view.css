@@ -179,6 +179,44 @@
 .sand-work-item__body { display: grid; gap: 3px; min-width: 0; }
 .sand-work-item__body > span, .sand-work-item__body > small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sand-work-item__body > small { color: var(--nuum-text-tertiary); font-size: 10px; }
+/* Work bar 群头像：成员 Nu-nu 头像拼进一个圆角方块（参考 Grok Bot 群聊头像）。 */
+.sand-work-avatar { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; overflow: hidden; border-radius: 10px; background: var(--nuum-bg-elevated); box-shadow: inset 0 0 0 1px var(--nuum-stroke-tertiary); }
+.sand-work-avatar__cell { display: grid; place-items: center; overflow: hidden; }
+.sand-work-avatar[data-count="2"] .sand-work-avatar__cell:nth-child(1) { grid-column: 1 / 3; }
+.sand-work-avatar[data-count="3"] .sand-work-avatar__cell:nth-child(3) { grid-column: 1 / 3; }
+
+/* ── Nu-nu 头像生命感：眨眼常驻（单眼自身原点，裁剪进剪影绝不越界）；
+      working 时身体底部原点的轻微压缩回弹（参考 Grok Bot 运行态）。 ── */
+.sand-agent-avatar__eye { transform-box: fill-box; transform-origin: center; animation: nu-avatar-blink 5.2s infinite; }
+@keyframes nu-avatar-blink {
+  0%, 93.5%, 100% { transform: scaleY(1); }
+  95.5%, 97% { transform: scaleY(0.1); }
+}
+.sand-agent-avatar[data-state="working"] .sand-agent-avatar__body { transform-box: fill-box; transform-origin: 50% 96%; animation: nu-avatar-working 0.9s ease-in-out infinite; }
+@keyframes nu-avatar-working {
+  0%, 100% { transform: translateY(0) scale(1, 1); }
+  30% { transform: translateY(-5%) scale(0.98, 1.04); }
+  60% { transform: translateY(0.5%) scale(1.03, 0.96); }
+}
+.sand-agent-avatar__sparkle { transform-box: fill-box; transform-origin: center; animation: nu-avatar-twinkle 1.8s ease-in-out infinite; }
+@keyframes nu-avatar-twinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.7) rotate(0deg); }
+  50% { opacity: 1; transform: scale(1.1) rotate(24deg); }
+}
+
+/* ── 聊天页输入框上方：运行中的 Nu-nu 本尊在动 ── */
+.sand-chat-working { display: flex; align-items: center; gap: 8px; padding: 2px 8px 6px; }
+.sand-chat-working__label { color: var(--nuum-text-tertiary); font-size: 12px; animation: nu-working-pulse 1.6s ease-in-out infinite; }
+@keyframes nu-working-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
+
+/* ── 创建页：随机形象预览 + 换一个 + 隐藏款徽标 ── */
+.sand-agent-create__preview { position: relative; display: inline-flex; }
+.sand-agent-create__hidden { position: absolute; left: 50%; bottom: -10px; transform: translateX(-50%); padding: 2px 10px; white-space: nowrap; border-radius: 999px; background: linear-gradient(100deg, #22d3ee, #818cf8, #e879f9, #fb7185); color: #fff; font-size: 10px; font-weight: 650; letter-spacing: 0.04em; box-shadow: 0 2px 8px -2px rgb(0 0 0 / 0.35); }
+.sand-agent-create__shuffle { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; padding: 6px 12px; border: 1px solid var(--nuum-stroke-secondary); border-radius: 999px; background: transparent; color: var(--nuum-text-secondary); font: inherit; font-size: 12px; cursor: pointer; }
+.sand-agent-create__shuffle:hover { color: var(--nuum-text-primary); background: var(--nuum-bg-secondary); }
 
 /* Sidebar-scoped state tokens keep utility behavior isolated from the rest of the app. */
 .sand-agents-sidebar .sand-agent-item__corner-dot {

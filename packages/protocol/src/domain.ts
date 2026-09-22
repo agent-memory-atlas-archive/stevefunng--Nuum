@@ -82,6 +82,8 @@ export const AgentProfile = z.object({
   tags: AgentTags.optional(),
   avatarColor: z.string().optional(),
   avatarShape: z.string().optional(),
+  /** 头像材质（哑光/玻璃/毛绒/极光隐藏款）。创建时随机定下并绑定，不再变更。 */
+  avatarMaterial: z.string().optional(),
   createdAt: z.number()
 });
 export type AgentProfile = z.infer<typeof AgentProfile>;

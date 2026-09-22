@@ -19,7 +19,9 @@ export type SandIconName =
   | "chevron-left"
   | "chevron-right"
   | "arrow-down"
-  | "ungroup";
+  | "ungroup"
+  | "people"
+  | "shuffle";
 
 export type SandIconSize = "sm" | "md" | "lg" | number;
 export type SandIconColor = string;
@@ -45,7 +47,9 @@ const PATHS: Record<SandIconName, string> = {
   "chevron-left": "M7.5 2.5 4 6l3.5 3.5",
   "chevron-right": "M4.5 2.5 8 6 4.5 9.5",
   "arrow-down": "M6 2.5v7M3 6.5l3 3 3-3",
-  ungroup: "M1.5 3h3l1-1h2l1 1h2v3M1.5 3v6.5H5M7 8l3 3M10 8l-3 3"
+  ungroup: "M1.5 3h3l1-1h2l1 1h2v3M1.5 3v6.5H5M7 8l3 3M10 8l-3 3",
+  people: "M4.2 5.9a2.1 2.1 0 1 1 0-4.2 2.1 2.1 0 0 1 0 4.2M1 10.4v-.5a3.2 3.2 0 0 1 6.4 0v.5M8.2 5.7a1.9 1.9 0 1 0-.6-3.7M8.9 6.8a3 3 0 0 1 2.1 2.9v.4",
+  shuffle: "M1.5 3h1.5c3.2 0 4.3 6 7.5 6M10.5 9l-1.6-1.4M10.5 9l-1.6 1.4M1.5 9h1.5c1.2 0 2.1-.9 2.9-2.1M5.9 5.1C6.7 4 7.6 3 9 3M10.5 3l-1.6-1.4M10.5 3l-1.6 1.4"
 };
 
 export function sandIconGlyph(name: SandIconName, _variant?: SandIconVariant, _platform?: SandIconPlatform): string {

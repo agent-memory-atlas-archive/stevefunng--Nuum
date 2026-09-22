@@ -159,6 +159,20 @@ export class WorkStore {
     return events;
   }
 
+  /** 侧栏摘要：work 的最近动态时间与最近一条群聊消息。work 数量少，整读即可。 */
+  async readActivity(id: string): Promise<{ lastActivityAt: number; preview?: string }> {
+    let lastActivityAt = 0;
+    let preview: string | undefined;
+    for (const event of await this.readTimeline(id)) {
+      lastActivityAt = Math.max(lastActivityAt, event.createdAt);
+      if (event.type === "chat.posted") {
+        const text = event.body.replace(/\s+/g, " ").trim().slice(0, 160);
+        if (text) preview = text;
+      }
+    }
+    return { lastActivityAt, ...(preview ? { preview } : {}) };
+  }
+
   private chain<T>(id: string, work: () => Promise<T>): Promise<T> {
     const previous = this.appendChains.get(id) ?? Promise.resolve();
     const current = previous.catch(() => undefined).then(work);

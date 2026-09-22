@@ -1,12 +1,12 @@
 import { t } from "../i18n";
-import type { AgentView, WorkProfile, SidebarOrganization } from "@nuum/protocol";
+import type { AgentView, WorkListItem, SidebarOrganization } from "@nuum/protocol";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
 import { SandIcon, SandIconButton } from "../kit/sand-kit-primitives";
 import { useAgentDrag } from "../workbar/agent-drag";
 import { EMPTY_SIDEBAR, UNASSIGNED_SECTION, PINNED_SECTION, assignSidebarAgent, projectSidebarAgents, toggleSidebarPin, removeSidebarSection, reorderSidebarPin } from "./sidebar-organization";
-import { SidebarMenu, SidebarNameDialog, type SidebarMenuItem } from "./sidebar-menu";
+import { SidebarMenu, SidebarNameDialog, SidebarNewMenu, type SidebarMenuItem } from "./sidebar-menu";
 import "./sidebar-organization.css";
-import { AgentAvatar } from "./agent-avatar";
+import { AgentAvatar, WorkGroupAvatar } from "./agent-avatar";
 import {
   SidebarResizeHandle,
   applySidebarDrag,
@@ -20,7 +20,9 @@ export interface ConversationSidebarProps {
   organization?: SidebarOrganization;
   onOrganizationChange(next: SidebarOrganization): Promise<void>;
   onEditAgent(id: string): void;
-  works: readonly WorkProfile[];
+  /** 最近一句话（UI 层经 projectAgent 投影取自转录尾部），subtitle 优先展示它。 */
+  previews: Readonly<Record<string, string>>;
+  works: readonly WorkListItem[];
   activeId: string | null;
   activeWorkId: string | null;
   layout: SidebarLayoutState;
@@ -54,6 +56,7 @@ export function ConversationSidebar({
   organization = EMPTY_SIDEBAR,
   onOrganizationChange,
   onEditAgent,
+  previews,
   works,
   activeId,
   activeWorkId,
@@ -69,6 +72,7 @@ export function ConversationSidebar({
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [menu, setMenu] = useState<{ point: { x: number; y: number }; agentId?: string; sectionId?: string; view?: "groups" } | null>(null);
+  const [newMenu, setNewMenu] = useState<{ left: number; top: number; width: number } | null>(null);
   const [groupDialog, setGroupDialog] = useState<{ sectionId?: string; agentId?: string; name: string } | null>(null);
   const menuOrigin = useRef<HTMLElement | null>(null);
   const closeMenu = () => { setMenu(null); menuOrigin.current?.focus({ preventScroll: true }); };
@@ -89,6 +93,16 @@ export function ConversationSidebar({
     menuOrigin.current = event.currentTarget;
     const rect = event.currentTarget.getBoundingClientRect();
     setMenu({ ...target, point: { x: event.clientX || rect.left + 20, y: event.clientY || rect.bottom } });
+  };
+  const openNewMenu = (event: MouseEvent<HTMLElement>) => {
+    if (newMenu) { setNewMenu(null); return; }
+    const rect = event.currentTarget.getBoundingClientRect();
+    const aside = event.currentTarget.closest("aside")?.getBoundingClientRect();
+    setNewMenu({
+      left: aside ? aside.left + 12 : rect.left,
+      top: rect.bottom + 6,
+      width: Math.min(Math.max(aside ? aside.width - 24 : 248, 208), 300)
+    });
   };
   const [query, setQuery] = useState("");
   const layoutRef = useRef(layout);
@@ -113,8 +127,32 @@ export function ConversationSidebar({
       );
     });
   }, [query, agents]);
+  const visibleWorks = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return [...works];
+    return works.filter((work) => {
+      return (
+        work.name.toLowerCase().includes(needle) ||
+        work.description.toLowerCase().includes(needle) ||
+        (work.preview ?? "").toLowerCase().includes(needle)
+      );
+    });
+  }, [query, works]);
+  const workMemberIds = (workId: string) => agents
+    .filter((agent) => agent.settings.workMembership?.binding?.workId === workId)
+    .map((agent) => agent.profile.id);
 
   const projection = projectSidebarAgents(visible, organization);
+  // Nunu 与 work bar 合并成一条按最近动态排序的列表（对齐 Grok Bot 的会话列表）。
+  const mergedRows = useMemo(() => {
+    const rows: ({ kind: "agent"; agent: AgentView } | { kind: "work"; work: WorkListItem })[] = [
+      ...projection.unassigned.map((agent) => ({ kind: "agent" as const, agent })),
+      ...visibleWorks.map((work) => ({ kind: "work" as const, work }))
+    ];
+    return rows.sort((a, b) =>
+      (b.kind === "agent" ? b.agent.runtime.lastActivityAt : b.work.lastActivityAt) -
+      (a.kind === "agent" ? a.agent.runtime.lastActivityAt : a.work.lastActivityAt));
+  }, [projection.unassigned, visibleWorks]);
   const section = organization.sections.find((item) => item.id === menu?.sectionId);
   const select = (action: () => void) => () => { closeMenu(); action(); };
   let items: SidebarMenuItem[] = [];
@@ -157,14 +195,38 @@ export function ConversationSidebar({
     onContextMenu={(event) => showMenu(event, { agentId: profile.id })} aria-haspopup="menu"
     key={profile.id} onDragStart={(event) => event.preventDefault()} onClick={() => onOpen(profile.id)} title={profile.name} type="button">
     <span className="sand-agent-item__avatar"><AgentAvatar agentId={profile.id} color={profile.avatarColor} shape={profile.avatarShape}
+      material={profile.avatarMaterial}
       size={collapsed ? 40 : pinned ? 52 : 34} state={runtime.status === "running" ? "working" : "idle"} />
       {runtime.status === "running" ? <span className="sand-status-dot" /> : null}
     </span>
     <span className="sand-agent-item__body"><span className="sand-agent-item__name">{profile.name}</span>
-      <span className="sand-agent-item__preview">{profile.description || t("New Agent")}</span></span>
+      <span className="sand-agent-item__preview">{previews[profile.id] || profile.description || t("New Agent")}</span></span>
     <span className="sand-agent-item__trailing"><span>{relativeTime(runtime.lastActivityAt)}</span>
       {runtime.status === "running" ? <span className="sand-agent-item__activity">{t("Working")}</span> : null}</span>
   </button>;
+
+  // work bar 行复用 agent 行的视觉语言，头像换成成员拼贴的群头像。
+  const renderWorkRow = (work: WorkListItem) => {
+    const memberIds = workMemberIds(work.id);
+    return <button
+      className="sand-agent-item"
+      data-active={work.id === activeWorkId || undefined}
+      data-agent-drop-work={work.id}
+      key={work.id}
+      onClick={() => onOpenWork(work.id)}
+      title={work.name}
+      type="button"
+    >
+      <span className="sand-agent-item__avatar">
+        {memberIds.length
+          ? <WorkGroupAvatar memberIds={memberIds} agents={agents} size={collapsed ? 40 : 34} />
+          : <span className="sand-work-item__mark" style={collapsed ? { width: 40, height: 40 } : undefined}>{work.name.slice(0, 1).toUpperCase()}</span>}
+      </span>
+      <span className="sand-agent-item__body"><span className="sand-agent-item__name">{work.name}</span>
+        <span className="sand-agent-item__preview">{work.preview || work.description || t("New Work")}</span></span>
+      <span className="sand-agent-item__trailing"><span>{relativeTime(work.lastActivityAt)}</span></span>
+    </button>;
+  };
 
   return (
     <aside
@@ -181,11 +243,14 @@ export function ConversationSidebar({
         {collapsed ? null : (
           <div className="sand-agents-sidebar__new-actions">
             <SandIconButton
+              aria-expanded={newMenu ? true : undefined}
+              aria-haspopup="menu"
               aria-label={t("New")}
               className="sand-agents-sidebar__new"
+              data-new-menu-toggle=""
               icon="plus"
               label={t("New")}
-              onClick={onNewAgent}
+              onClick={openNewMenu}
               size="sm"
               title={t("New agent")}
             />
@@ -221,53 +286,25 @@ export function ConversationSidebar({
             {!group.agents.length && !collapsed ? <div className="sand-agents-section__empty">{t("Drag an Agent here")}</div> : null}</div> : null}
         </section>)}
         <section className="sand-sidebar-group" data-agent-drop-section={UNASSIGNED_SECTION}>
-          {!collapsed && projection.unassigned.length > 0 ? <div className="sand-agents-list__label"><span>{organization.sections.length ? t("Unassigned") : t("Agents")}</span><span>{projection.unassigned.length}</span></div> : null}
-          <div className="sand-agents-section__rows">{projection.unassigned.map((agent) => renderAgent(agent))}</div>
-        </section>
-        {visible.length === 0 ? <div className="sand-agents-section__empty">{agents.length === 0 ? t("No agents yet") : t("No matching agents")}</div> : null}
-        {notice && !groupDialog ? <p className="sand-sidebar-notice" role="alert">{t(notice)}</p> : null}
-        <div className="sand-work-section">
-          {!collapsed ? (
-            <div className="sand-agents-list__label sand-work-section__label">
-              <span>{t("Work Bar")}</span>
-              <span>{works.length}</span>
-              <button aria-label={t("New Work")} onClick={onNewWork} title={t("New Work")} type="button">+</button>
-            </div>
-          ) : null}
+          {!collapsed && organization.sections.length > 0 && mergedRows.length > 0 ? <div className="sand-agents-list__label"><span>{t("Unassigned")}</span><span>{mergedRows.length}</span></div> : null}
           <div className="sand-agents-section__rows">
-            {works.map((work) => (
-              <button
-                className="sand-work-item"
-                data-agent-drop-work={work.id}
-                data-active={work.id === activeWorkId || undefined}
-                key={work.id}
-                onClick={() => onOpenWork(work.id)}
-                title={work.name}
-                type="button"
-              >
-                <span className="sand-work-item__mark">{work.name.slice(0, 1).toUpperCase()}</span>
-                <span className="sand-work-item__body">
-                  <span>{work.name}</span>
-                  <small>{work.description || t("New Work")}</small>
-                </span>
-              </button>
-            ))}
-            {collapsed ? (
-              <button aria-label={t("New Work")} className="sand-work-item sand-work-item--new" onClick={onNewWork} title={t("New Work")} type="button">
-                <span className="sand-work-item__mark">+</span>
-              </button>
-            ) : null}
+            {mergedRows.map((row) => row.kind === "agent" ? renderAgent(row.agent) : renderWorkRow(row.work))}
           </div>
-        </div>
+        </section>
+        {mergedRows.length === 0 && projection.pinned.length === 0 ? <div className="sand-agents-section__empty">{agents.length === 0 && works.length === 0 ? t("No agents yet") : t("No matching agents")}</div> : null}
+        {notice && !groupDialog ? <p className="sand-sidebar-notice" role="alert">{t(notice)}</p> : null}
       </nav>
       <footer className="sand-agents-sidebar__footer">
         {collapsed ? (
           <SandIconButton
+            aria-expanded={newMenu ? true : undefined}
+            aria-haspopup="menu"
             aria-label={t("New")}
             className="sand-agents-sidebar__new"
+            data-new-menu-toggle=""
             icon="plus"
             label={t("New")}
-            onClick={onNewAgent}
+            onClick={openNewMenu}
             shape="circle"
             size="sm"
             title={t("New agent")}
@@ -284,6 +321,18 @@ export function ConversationSidebar({
         />
       </footer>
       {menu && items.length ? <SidebarMenu point={menu.point} items={items} onClose={closeMenu} /> : null}
+      {newMenu ? <SidebarNewMenu
+        anchor={newMenu}
+        agents={agents.filter((agent) => !agent.settings.hiddenFromSidebar)}
+        works={visibleWorks.map((work) => ({ ...work, memberIds: workMemberIds(work.id) }))}
+        activeId={activeId}
+        activeWorkId={activeWorkId}
+        onNewAgent={onNewAgent}
+        onNewWork={onNewWork}
+        onOpen={onOpen}
+        onOpenWork={onOpenWork}
+        onClose={() => setNewMenu(null)}
+      /> : null}
       {groupDialog ? <SidebarNameDialog key={groupDialog.sectionId ?? "new"} title={groupDialog.sectionId ? t("Rename group") : t("New group")}
         initialValue={groupDialog.name} busy={busy} error={t(notice)} onClose={() => setGroupDialog(null)} onSave={(name) => {
           const id = groupDialog.sectionId ?? crypto.randomUUID();
