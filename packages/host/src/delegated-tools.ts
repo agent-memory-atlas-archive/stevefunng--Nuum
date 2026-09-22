@@ -3,6 +3,7 @@ import {
   DelegateWorkParams,
   DelegatedToolNames,
   ReadAgentTranscriptParams,
+  CheckAgentParams,
   ReadWorkTimelineParams,
   RunWorkCliParams,
   SendMessageParams,
@@ -52,6 +53,7 @@ export interface DelegateHost {
   updateAgentFromModel(agentId: string, params: UpdateAgentParams): Promise<string>;
   sendToAgent(agentId: string, params: SendToAgentParams): Promise<string>;
   readAgentTranscript(agentId: string, params: ReadAgentTranscriptParams): Promise<string>;
+  checkAgent(agentId: string, params: CheckAgentParams): Promise<string>;
   stopAgent(agentId: string, params: StopAgentParams): Promise<string>;
   postToWork(agentId: string, params: PostToWorkParams, context: DelegatedToolContext): Promise<string>;
   handoffTask(agentId: string, params: HandoffTaskParams, context: DelegatedToolContext): Promise<string>;
@@ -105,6 +107,9 @@ export function createDelegatedTools(host: Partial<DelegateHost>): DelegatedTool
       : undefined,
     [DelegatedToolNames.readAgentTranscript]: host.readAgentTranscript
       ? (args, context) => host.readAgentTranscript!(context.agentId, ReadAgentTranscriptParams.parse(args))
+      : undefined,
+    [DelegatedToolNames.checkAgent]: host.checkAgent
+      ? (args, context) => host.checkAgent!(context.agentId, CheckAgentParams.parse(args))
       : undefined,
     [DelegatedToolNames.stopAgent]: host.stopAgent
       ? (args, context) => host.stopAgent!(context.agentId, StopAgentParams.parse(args))

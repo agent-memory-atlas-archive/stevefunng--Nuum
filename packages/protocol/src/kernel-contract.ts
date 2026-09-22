@@ -60,6 +60,11 @@ export const TurnStartParams = z.object({
    * 里没有它们，只传名字会被过滤掉，模型也就看不见这个工具、永远不会调。
    */
   delegatedTools: z.array(ToolDefinition).default([]),
+  /**
+   * 「发声」工具名 —— 模型对用户可见的出口（direct run 是 SendMessage，work run
+   * 是 PostToWork/HandoffTask）。turn 循环的静默提醒按它计数；缺省 SendMessage。
+   */
+  voiceToolNames: z.array(z.string()).default(["SendMessage"]),
   secrets: Secrets
 });
 export type TurnStartParams = z.infer<typeof TurnStartParams>;

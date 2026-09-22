@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import {
   DEFAULT_AGENT_NAME,
+  DelegatedToolNames,
   type DelegateWorkParams,
   HostErrorCode,
   HostEvents,
@@ -20,6 +21,7 @@ import {
   type AgentUpdateParams,
   type AgentView,
   type AssistantPart,
+  type CheckAgentParams,
   type CreateAgentParams,
   type LocalToolAction,
   type ReadAgentTranscriptParams,
@@ -724,7 +726,11 @@ export class HostRuntime implements Partial<DelegateHost> {
 
   // ── 回合 ────────────────────────────────────────────────────────────────
 
-  async send(id: string, content: string): Promise<{ ok: true; runId: string; queued: boolean }> {
+  async send(
+    id: string,
+    content: string,
+    options: { widgetAnswerTo?: string } = {}
+  ): Promise<{ ok: true; runId: string; queued: boolean }> {
     const record = this.store.requireAgent(id);
     const model = resolveSessionModel({
       sessionModel: record.settings.model,
@@ -751,6 +757,7 @@ export class HostRuntime implements Partial<DelegateHost> {
       type: "user",
       id: crypto.randomUUID(),
       text: content,
+      ...(options.widgetAnswerTo ? { widgetAnswerTo: options.widgetAnswerTo } : {}),
       createdAt: Date.now()
     });
     if (record.profile.name === DEFAULT_AGENT_NAME && events.length === 0) {
@@ -766,6 +773,15 @@ export class HostRuntime implements Partial<DelegateHost> {
     // 立刻起的 run 等它真的进了 Kernel 再回 —— 否则拉起失败会被吞掉，用户以为发出去了。
     await started;
     return { ok: true, runId, queued: state === "queued" };
+  }
+
+  /**
+   * 回答提问卡片：选项值原样成为一条用户消息（Grok 同款语义 —— value 写得像
+   * 用户会回的话），并用 widgetAnswerTo 指回那张卡片，投影据此标出选中项。
+   */
+  async answerWidget(id: string, messageId: string, value: string): Promise<{ ok: true; runId: string; queued: boolean }> {
+    this.store.requireAgent(id);
+    return this.send(id, value, { widgetAnswerTo: messageId });
   }
 
   /**
@@ -839,6 +855,11 @@ export class HostRuntime implements Partial<DelegateHost> {
           delegatedTools: delegatedToolsForRunContext(this.delegated.values(), activeContext).map(
             (tool) => tool.definition
           ),
+          // turn 循环的静默提醒按「发声工具」计数：direct 是 SendMessage，
+          // work 里对用户的可见出口是共享频道的 PostToWork / HandoffTask。
+          voiceToolNames: activeContext.kind === "work"
+            ? [DelegatedToolNames.postToWork, DelegatedToolNames.handoffTask]
+            : [DelegatedToolNames.sendMessage],
           secrets: this.store.secrets
         });
       }
@@ -916,9 +937,11 @@ export class HostRuntime implements Partial<DelegateHost> {
       createdAt: Date.now()
     });
     this.emit(HostEvents.agentMessageCompleted, { agentId, event });
-    if (params.type === "text") return "Delivered.";
-    if (params.type === "attachment") return `Delivered ${params.path}.`;
-    return `Delivered the ${params.widget} widget.`;
+    if (params.type === "text") return `Delivered. (id: ${event.id})`;
+    if (params.type === "attachment") return `Delivered ${params.path}. (id: ${event.id})`;
+    if (typeof params.widget === "string") return `Delivered the ${params.widget} widget.`;
+    // 提问卡片语义上结束回合：用户的选择会作为下一条用户消息回来。
+    return `Question delivered. (id: ${event.id}) Stop after this; the user's selection arrives as their next message.`;
   }
 
   async postToWork(
@@ -1244,6 +1267,37 @@ export class HostRuntime implements Partial<DelegateHost> {
     return [`Last ${lines.length} ${noun} from "${target.profile.name}"${busy}:`, "", ...lines].join("\n");
   }
 
+  /**
+   * CheckAgent：看队友此刻在干什么，不打扰也不唤醒。比 ReadAgentTranscript 轻：
+   * 只回状态与最近的工具活动，细节让模型自己 read 转录文件。只读。
+   */
+  async checkAgent(agentId: string, params: CheckAgentParams): Promise<string> {
+    if (params.agent_id === agentId) return "That is you — you already know what you are doing.";
+    const target = this.store.getAgent(params.agent_id);
+    if (!target) return `No agent with id ${params.agent_id}.`;
+    const runId = this.scheduler.activeRunFor(params.agent_id);
+    const runContext = runId ? this.scheduler.contextFor(runId) : undefined;
+    const status = runContext
+      ? runContext.kind === "work"
+        ? `"${target.profile.name}" is currently working in Work "${this.workStore.getWork(runContext.workId).name}".`
+        : `"${target.profile.name}" is currently working in their own chat.`
+      : `"${target.profile.name}" is idle.`;
+    const { entries } = await this.store.readTranscriptPage(params.agent_id, undefined, 60);
+    const recentTools = entries
+      .filter((event): event is Extract<TranscriptEvent, { type: "tool" }> => event.type === "tool")
+      .slice(-5);
+    const lines = [status];
+    if (recentTools.length > 0) {
+      lines.push("Recent tool activity (oldest first):");
+      for (const tool of recentTools) {
+        const preview = tool.content.length > 120 ? `${tool.content.slice(0, 119)}…` : tool.content;
+        lines.push(`  ${tool.name}: ${tool.ok === false ? "failed" : "done"} — ${preview}`);
+      }
+    }
+    lines.push(`Their transcript is at ${this.store.transcriptFile(params.agent_id)} if you need the full play-by-play (read-only).`);
+    return lines.join("\n");
+  }
+
   /** StopAgent：掐掉对方当前的 run，排着的唤醒也一起丢。 */
   async stopAgent(agentId: string, params: StopAgentParams): Promise<string> {
     if (params.agent_id === agentId) return "That would stop you. Just stop calling tools instead.";
@@ -1311,7 +1365,10 @@ export class HostRuntime implements Partial<DelegateHost> {
         communication: [
           "## Talking in this Work",
           "",
-          "PostToWork is your progress channel for the shared room. HandoffTask is the only way to return an assigned task for review or report it blocked.",
+          "PostToWork is your only voice in this Work: the shared room is where the user and teammates read your progress, and a message counts only once it is inside PostToWork. Plain text you write stays invisible.",
+          "- Open with a short acknowledgement when a task arrives, then keep the room posted on meaningful beats — a step finished, a real result, a decision, a blocker, a change of plan. Never vanish into a long silent stretch, and do not narrate routine mechanics, retries, or minor snags.",
+          "- Keep updates short and specific to what changed; fold trivial mechanics under one intent.",
+          "- HandoffTask is the only way to return an assigned task for review, report it blocked, or mark it done. An update is not a handoff.",
           "Your private Agent chat remains separate. SendMessage is unavailable in this run; do not move Work updates into the private transcript."
         ].join("\n")
       } : {}),

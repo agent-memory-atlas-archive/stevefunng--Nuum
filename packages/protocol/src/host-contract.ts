@@ -34,6 +34,7 @@ export const HostMethods = {
   agentDelete: "agent.delete",
   agentGetTranscript: "agent.getTranscript",
   agentSend: "agent.send",
+  agentAnswerWidget: "agent.answerWidget",
   agentCancel: "agent.cancel",
   agentApproveTool: "agent.approveTool",
   agentDenyTool: "agent.denyTool",
@@ -286,6 +287,14 @@ export const AgentSendParams = z.object({
   content: z.string().min(1)
 });
 export type AgentSendParams = z.infer<typeof AgentSendParams>;
+
+/** 回答提问卡片：value 原样成为用户消息，messageId 指回那张卡片供投影标选中项。 */
+export const AgentAnswerWidgetParams = z.object({
+  id: z.string(),
+  messageId: z.string(),
+  value: z.string().min(1)
+});
+export type AgentAnswerWidgetParams = z.infer<typeof AgentAnswerWidgetParams>;
 
 export const AgentToolDecision = z.object({
   id: z.string(),

@@ -74,6 +74,7 @@ function startParams(overrides: Partial<TurnStartParams> = {}): TurnStartParams 
     refused: [],
     localToolNames: [],
     delegatedTools: [],
+    voiceToolNames: ["SendMessage"],
     secrets: { deepseekApiKey: "k" },
     ...overrides
   };
@@ -350,4 +351,107 @@ test("an unknown tool fails the turn with an error, not a silent stall", async (
   await waitFor(() => events.some((event) => event.method === "turn.ended"), "the turn to end");
   assert.match(events.find((event) => event.method === "turn.error")!.params.message, /Unknown tool: ghost/);
   assert.equal(events.at(-1)!.params.status, "error");
+});
+
+// ── turn 循环的节奏提醒（ack / result / silence）─────────────────────────────
+
+function stepRegistry(): ToolRegistry {
+  return new ToolRegistry([{
+    definition: {
+      name: "step",
+      description: "one unit of silent work",
+      inputSchema: { type: "object", properties: {} },
+      mutating: false,
+      action: "read-file"
+    },
+    execute: async () => "ok"
+  }]);
+}
+
+function reminders(request: NormalizedChatRequest | undefined): { kind: string }[] {
+  return (request?.messages ?? [])
+    .filter((message) => typeof message.id === "string" && message.id.startsWith("reminder-"))
+    .map((message) => ({ kind: (message.id as string).split("-")[1]! }));
+}
+
+test("turns that open with tools get one ack reminder, and silence gets one after the long streak", async () => {
+  const rounds: NormalizedChunk[][] = Array.from({ length: 7 }, (_, i) => [
+    { type: "tool_call" as const, id: `c${i}`, name: "step", arguments: {} }
+  ]);
+  rounds.push([{ type: "text" as const, text: "done" }]);
+  const { deps, requests } = scriptedModel(rounds);
+  const { events, emit } = collector();
+  startTurn(startParams({ localToolNames: ["step"] }), emit, stepRegistry(), deps);
+  await waitFor(() => events.some((event) => event.method === "turn.ended"), "the turn to end");
+
+  // 提醒一旦注入就留在后续每轮的上下文里，所以按「首次出现」断言。
+  const firstOf = (kind: string): number =>
+    requests.findIndex((request) => reminders(request).some((r) => r.kind === kind));
+  assert.equal(firstOf("ack"), 2, "ack fires once the silent count passes 2");
+  assert.equal(firstOf("silence"), 7, "silence fires once the silent count passes 6");
+  // 每种整段只发一次。
+  const last = reminders(requests.at(-1));
+  assert.deepEqual(last.filter((r) => r.kind === "ack").length, 1);
+  assert.deepEqual(last.filter((r) => r.kind === "silence").length, 1);
+  assert.equal(requests.length, 8);
+});
+
+test("a voice call resets the streak: result reminder replaces further acks", async () => {
+  const { deps, requests } = scriptedModel([
+    [
+      { type: "tool_call", id: "c1", name: "step", arguments: {} },
+      { type: "tool_call", id: "c2", name: "step", arguments: {} }
+    ],
+    [{ type: "tool_call", id: "c3", name: "send_message", arguments: {} }],
+    [
+      { type: "tool_call", id: "c4", name: "step", arguments: {} },
+      { type: "tool_call", id: "c5", name: "step", arguments: {} }
+    ],
+    [{ type: "text", text: "done" }]
+  ]);
+  const { events, emit } = collector();
+  const handle = startTurn(
+    startParams({ localToolNames: ["step"], delegatedTools: [sendMessage], voiceToolNames: ["send_message"] }),
+    emit,
+    stepRegistry(),
+    deps
+  );
+  await waitFor(() => events.some((event) => event.method === "turn.tool.delegate"), "the delegate request");
+  handle.provideToolResult("c3", true, "delivered");
+  await waitFor(() => events.some((event) => event.method === "turn.ended"), "the turn to end");
+
+  const firstOf = (kind: string): number =>
+    requests.findIndex((request) => reminders(request).some((r) => r.kind === kind));
+  assert.equal(firstOf("ack"), 1);
+  // 发声重置了计数与段标记：第三轮请求里没有新提醒出现。
+  assert.deepEqual(reminders(requests[2]), reminders(requests[1]));
+  // 再次埋头后，result 提醒接棒（用户看不见工具输出）。
+  assert.equal(firstOf("result"), 3);
+  const last = reminders(requests.at(-1));
+  assert.deepEqual(last.filter((r) => r.kind === "ack").length, 1);
+  assert.deepEqual(last.filter((r) => r.kind === "result").length, 1);
+  assert.equal(requests.length, 4);
+});
+
+test("voiceToolNames follows the run: work-run voice tools suppress the ack reminder", async () => {
+  const { deps, requests } = scriptedModel([
+    [
+      { type: "tool_call", id: "c1", name: "send_message", arguments: {} },
+      { type: "tool_call", id: "c2", name: "send_message", arguments: {} }
+    ],
+    [{ type: "text", text: "done" }]
+  ]);
+  const { events, emit } = collector();
+  const handle = startTurn(
+    startParams({ delegatedTools: [sendMessage], voiceToolNames: ["send_message"] }),
+    emit,
+    new ToolRegistry([]),
+    deps
+  );
+  for (const id of ["c1", "c2"]) {
+    await waitFor(() => events.filter((event) => event.method === "turn.tool.delegate").length >= (id === "c1" ? 1 : 2), `delegate ${id}`);
+    handle.provideToolResult(id, true, "delivered");
+  }
+  await waitFor(() => events.some((event) => event.method === "turn.ended"), "the turn to end");
+  for (const request of requests) assert.deepEqual(reminders(request), []);
 });

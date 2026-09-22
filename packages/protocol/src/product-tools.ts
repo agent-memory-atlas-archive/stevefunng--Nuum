@@ -16,6 +16,7 @@ export const DelegatedToolNames = {
   updateAgent: "UpdateAgent",
   sendToAgent: "SendToAgent",
   readAgentTranscript: "ReadAgentTranscript",
+  checkAgent: "CheckAgent",
   stopAgent: "StopAgent",
   postToWork: "PostToWork",
   handoffTask: "HandoffTask",
@@ -24,7 +25,58 @@ export const DelegatedToolNames = {
   delegateWork: "DelegateWork"
 } as const;
 
-export const SendMessageParams = OutboundMessage;
+/**
+ * 参数校验先于 OutboundMessage 解析：union 成员会剥掉未知键，跨类型的字段误用
+ * （如把 path 搭在 type:text 上）会被静默吞掉。这里在原始参数上拦住它，并按
+ * 「什么没发出去、怎么重发」教模型自纠 —— 错误文本会原样回到模型。
+ */
+const OUTBOUND_FIELD_TYPES: Record<string, readonly string[]> = {
+  content: ["text"],
+  images: ["text"],
+  path: ["attachment"],
+  caption: ["attachment"],
+  widget: ["widget"],
+  props: ["widget"]
+};
+
+export const SendMessageParams = z
+  .record(z.unknown())
+  .superRefine((args, ctx) => {
+    if (typeof args.type !== "string") return;
+    for (const [field, allowed] of Object.entries(OUTBOUND_FIELD_TYPES)) {
+      if (field in args && args[field] !== undefined && !allowed.includes(args.type)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [field],
+          message: `${field} is only valid with type:${allowed.join(" or ")}, not type:${args.type} — it would be silently dropped. Nothing was sent. Re-send as separate SendMessage calls, one per type.`
+        });
+      }
+    }
+    // 必填字段在原始参数上拦，错误文案自己写 —— union 的通用报错说不出
+    // 「哪个字段、怎么改」，模型只能靠这句话自纠。
+    if (args.type === "text" && (args.content === undefined || args.content === "") && args.text === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["content"],
+        message: "content is required when type is text. Nothing was sent."
+      });
+    }
+    if (args.type === "attachment" && (args.path === undefined || args.path === "")) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["path"],
+        message: "path is required when type is attachment. Nothing was sent."
+      });
+    }
+    if (args.type === "widget" && args.widget === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["widget"],
+        message: "widget is required when type is widget: an object with prompt and options. Nothing was sent."
+      });
+    }
+  })
+  .pipe(OutboundMessage);
 export type SendMessageParams = z.infer<typeof SendMessageParams>;
 
 export const UpdateStateParams = z.discriminatedUnion("target", [
@@ -77,6 +129,9 @@ export const ReadAgentTranscriptParams = z.object({
 });
 export type ReadAgentTranscriptParams = z.infer<typeof ReadAgentTranscriptParams>;
 
+export const CheckAgentParams = z.object({ agent_id: z.string() });
+export type CheckAgentParams = z.infer<typeof CheckAgentParams>;
+
 export const StopAgentParams = z.object({ agent_id: z.string() });
 export type StopAgentParams = z.infer<typeof StopAgentParams>;
 
@@ -117,22 +172,52 @@ export const DELEGATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: DelegatedToolNames.sendMessage,
     description:
-      "Say something to the user. This is your only voice: plain text you write outside this tool is a scratchpad the user does not read. Call it as soon as you have something worth saying, and again when you are done.",
+      "Say something to the user in their chat with you. This is your only voice: the user only ever sees the content of SendMessage calls, and plain text you write is an invisible scratchpad — so a reply counts only once it is inside SendMessage, including short casual ones like \"Got it\". Ending a turn where someone is waiting on you without SendMessage means they see silence. Post updates as you work, not just at the end: a real result, decision, or blocker is worth a message; routine mechanics and retries are not. Results count as delivered only inside SendMessage — an opening acknowledgement never discharges a result you owe (ack != delivery), so the last thing you do on a turn that produced one is SendMessage it. Use {\"type\":\"text\",\"content\":\"...\"} for normal messages; when a reply has two or three beats, send them as a short run of separate SendMessage calls, like quick texts, rather than one welded paragraph. Attach images to the text they belong with via images (they render inside the same bubble); use type:attachment only when the file IS the whole message. Use {\"type\":\"widget\",\"widget\":{...}} to ask a question with selectable options — sparingly: by default decide and proceed, reserving widgets for consequential or destructive go/no-go calls, true ambiguity you cannot resolve yourself, or something only the user knows. Every option must be a real, verified choice; a user's selection arrives as their next message. Sending a widget ends your turn — make it your last action.",
     inputSchema: {
       type: "object",
       required: ["type"],
       properties: {
         type: { type: "string", enum: ["text", "attachment", "widget"] },
-        text: { type: "string", description: "For type=text: what to say." },
+        content: { type: "string", description: "Required when type=text: the message to show the user." },
         images: {
           type: "array",
-          items: { type: "string" },
-          description: "For type=text: absolute paths to images to show inline."
+          description: "Optional, only with type=text: images that belong with this message; they render inside the same bubble below the text.",
+          items: {
+            type: "object",
+            required: ["path"],
+            properties: {
+              path: { type: "string", description: "Absolute local path to the image file." },
+              alt: { type: "string", description: "Short description shown on hover and as fullscreen caption." }
+            }
+          }
         },
-        path: { type: "string", description: "For type=attachment: absolute path to the file." },
+        path: { type: "string", description: "Required when type=attachment: absolute path to the file." },
         caption: { type: "string", description: "For type=attachment: one line about it." },
-        widget: { type: "string", description: "For type=widget: the widget name." },
-        props: { type: "object", description: "For type=widget: its props." }
+        widget: {
+          type: "object",
+          description: "Required when type=widget: a question with selectable options. The chosen option's value is sent back to you as the user's reply.",
+          required: ["prompt", "options"],
+          properties: {
+            prompt: { type: "string", description: "The question, phrased as a natural conversational sentence — never a menu instruction." },
+            helpText: { type: "string", description: "Optional short help shown under the question." },
+            options: {
+              type: "array",
+              minItems: 1,
+              maxItems: 6,
+              items: {
+                type: "object",
+                required: ["label"],
+                properties: {
+                  label: { type: "string", description: "Short option label shown on the card." },
+                  value: { type: "string", description: "Text sent back when picked; defaults to the label. Write it like a reply the user would actually send." },
+                  description: { type: "string", description: "Optional one-line explanation under the label." },
+                  style: { type: "string", enum: ["default", "primary", "danger"], description: "danger marks a destructive choice; primary marks the recommended one." }
+                }
+              }
+            },
+            allowCustom: { type: "boolean", description: "Let the user type a free-text answer instead of picking an option." }
+          }
+        }
       }
     },
     mutating: false
@@ -189,14 +274,14 @@ export const DELEGATED_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: DelegatedToolNames.sendToAgent,
     description:
-      "Send a message to another agent. Delivery is asynchronous; this returns immediately, and a later SendToAgent reply from that teammate wakes you here. Use priority to interrupt what it is currently doing.",
+      "Send a message to another agent. Delivery is asynchronous and fire-and-forget, like texting: it returns immediately, and a later reply from that teammate wakes you here — never wait or poll for one in this turn. Write the message self-contained (they cannot see your chat) and lead with the point. Waking a teammate is a real side effect: message an agent only when it serves the user's goal, never relay the user's private or unfiltered words verbatim (paraphrase the actionable point instead), and messaging several agents about the same effort is a fan-out you only make when the user explicitly asked for it. Use priority to interrupt what the recipient is currently doing — for STOP / supersede / time-critical instructions, not for ordinary replies.",
     inputSchema: {
       type: "object",
       required: ["agent_id", "message"],
       properties: {
         agent_id: AGENT_ID,
         message: { type: "string", description: "Self-contained: the other agent cannot see your chat." },
-        priority: { type: "boolean", description: "Interrupt its current work instead of queueing." }
+        priority: { type: "boolean", description: "Interrupt its current work instead of queueing. For STOP / supersede / time-critical instructions only." }
       }
     },
     mutating: false
@@ -209,6 +294,18 @@ export const DELEGATED_TOOL_DEFINITIONS: ToolDefinition[] = [
       type: "object",
       required: ["agent_id"],
       properties: { agent_id: AGENT_ID, limit: { type: "number", description: "How many entries, newest last." } }
+    },
+    mutating: false
+  },
+  {
+    name: DelegatedToolNames.checkAgent,
+    description:
+      "Check what another agent is doing right now, without messaging or waking it. Returns whether it is running or idle, which run it is in (your user's private chat or a Work), its recent tool activity, and the path to its transcript you can read for the full play-by-play. Read-only. Use it when a teammate you are working with seems stuck, slow, or you need its current state before deciding next steps; to actually reach it, use SendToAgent.",
+    inputSchema: {
+      type: "object",
+      required: ["agent_id"],
+      properties: { agent_id: AGENT_ID },
+      description: "Pass the agent's id from your teammate directory — not a name."
     },
     mutating: false
   },

@@ -36,6 +36,8 @@ export interface ConversationWorkspaceProps {
     avatarMaterial: string;
   }): void;
   onApprove(resolution: "always" | "once" | "deny" | "never"): void;
+  /** 回答提问卡片：选项值原样成为一条用户消息并唤醒对方。 */
+  onAnswerWidget?(messageId: string, value: string): void;
   notice?: string | null;
 }
 
@@ -97,17 +99,35 @@ function AssistantBlock({ block }: { block: Extract<ViewBlock, { type: "assistan
 }
 
 /** SendMessage 产出的真正助手气泡。 */
-function MessageBlock({ block }: { block: Extract<ViewBlock, { type: "message" }> }) {
+function MessageBlock({
+  block,
+  answered,
+  onAnswer
+}: {
+  block: Extract<ViewBlock, { type: "message" }>;
+  answered: string | null;
+  onAnswer?(value: string): void;
+}) {
   const { payload } = block;
+  // widget 新旧两种载荷共用 type:"widget"，TS 分不清 —— 在这里一次收窄。
+  const legacyWidget = payload.type === "widget" && typeof payload.widget === "string"
+    ? { name: payload.widget, props: "props" in payload ? payload.props ?? {} : {} }
+    : null;
+  const widgetCard = payload.type === "widget" && typeof payload.widget !== "string" ? payload.widget : null;
   return (
     <article className="sand-transcript-row">
       <div className="sand-message sand-message--assistant">
         <div className="sand-message-prose">
           {payload.type === "text" ? (
             <>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{payload.text}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{payload.content}</ReactMarkdown>
               {payload.images?.map((image) => (
-                <img alt="" className="sand-message-image" key={image} src={`file://${image}`} />
+                <img
+                  alt={image.alt ?? ""}
+                  className="sand-message-image"
+                  key={image.path}
+                  src={`file://${image.path}`}
+                />
               ))}
             </>
           ) : payload.type === "attachment" ? (
@@ -115,13 +135,80 @@ function MessageBlock({ block }: { block: Extract<ViewBlock, { type: "message" }
               <a href={`file://${payload.path}`}>{payload.path}</a>
               {payload.caption ? <p>{payload.caption}</p> : null}
             </>
-          ) : (
-            // widget 的真实渲染是下版的事；先如实显示收到了什么，不假装画出来了。
-            <pre>{`${payload.widget} ${JSON.stringify(payload.props)}`}</pre>
-          )}
+          ) : legacyWidget ? (
+            // 旧版 widget 是 name+props 透传；真实渲染仍是下版的事。
+            <pre>{`${legacyWidget.name} ${JSON.stringify(legacyWidget.props)}`}</pre>
+          ) : widgetCard ? (
+            <WidgetCard
+              answered={answered}
+              blockId={block.id}
+              onAnswer={onAnswer}
+              widget={widgetCard}
+            />
+          ) : null}
         </div>
       </div>
     </article>
+  );
+}
+
+/** 提问卡片：选项点选后原样成为一条用户消息；已回答的卡片定格在选中项上。 */
+function WidgetCard({
+  blockId,
+  widget,
+  answered,
+  onAnswer
+}: {
+  blockId: string;
+  widget: { prompt: string; helpText?: string; options: { label: string; value?: string; description?: string; style?: "default" | "primary" | "danger" }[]; allowCustom?: boolean };
+  answered: string | null;
+  onAnswer?(value: string): void;
+}) {
+  const [custom, setCustom] = useState("");
+  const resolved = answered != null;
+  const pick = (option: { label: string; value?: string }): void => onAnswer?.(option.value ?? option.label);
+  return (
+    <div className="sand-widget-card" data-resolved={resolved || undefined} key={blockId}>
+      <p className="sand-widget-card__prompt">{widget.prompt}</p>
+      {widget.helpText ? <p className="sand-widget-card__help">{widget.helpText}</p> : null}
+      <div className="sand-widget-card__options">
+        {widget.options.map((option) => {
+          const value = option.value ?? option.label;
+          const chosen = resolved && answered === value;
+          return (
+            <button
+              className="sand-widget-card__option"
+              data-style={option.style}
+              data-chosen={chosen || undefined}
+              disabled={resolved || !onAnswer}
+              key={value}
+              onClick={() => pick(option)}
+              type="button"
+            >
+              <span>{option.label}</span>
+              {option.description ? <small>{option.description}</small> : null}
+            </button>
+          );
+        })}
+      </div>
+      {widget.allowCustom && !resolved ? (
+        <form
+          className="sand-widget-card__custom"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (custom.trim()) onAnswer?.(custom.trim());
+          }}
+        >
+          <input
+            onChange={(event) => setCustom(event.target.value)}
+            placeholder={t("Or type your own answer…")}
+            value={custom}
+          />
+          <button disabled={!custom.trim()} type="submit">{t("Send")}</button>
+        </form>
+      ) : null}
+      {resolved ? <p className="sand-widget-card__resolved">{t("Your answer: {answer}", { answer: answered })}</p> : null}
+    </div>
   );
 }
 
@@ -272,9 +359,17 @@ export function ConversationWorkspace({
   onCancelCreate,
   onCreateAgent,
   onApprove,
+  onAnswerWidget,
   notice
 }: ConversationWorkspaceProps) {
   const empty = agent == null || blocks.length === 0;
+  // 提问卡片的已回答状态：user 块的 widgetAnswerTo 指回被回答的 message 块。
+  const widgetAnswers = new Map(
+    blocks
+      .filter((block): block is Extract<ViewBlock, { type: "user" }> =>
+        block.type === "user" && block.widgetAnswerTo != null)
+      .map((block) => [block.widgetAnswerTo as string, block.text])
+  );
   const transcriptRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
@@ -339,7 +434,12 @@ export function ConversationWorkspace({
               </div>
             </article>
           ) : block.type === "message" ? (
-            <MessageBlock block={block} key={block.id} />
+            <MessageBlock
+              answered={widgetAnswers.get(block.id) ?? null}
+              block={block}
+              key={block.id}
+              onAnswer={onAnswerWidget ? (value) => onAnswerWidget(block.id, value) : undefined}
+            />
           ) : block.type === "notice" ? (
             <NoticeBlock block={block} key={block.id} />
           ) : block.type === "peer" ? (

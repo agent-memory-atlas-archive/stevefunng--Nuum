@@ -39,24 +39,78 @@ export type WakeSource = z.infer<typeof WakeSource>;
  * SendMessage 的载荷 —— 助手对用户的唯一可见出口。
  * 本版支持 text / attachment / widget。
  */
-export const OutboundMessage = z.discriminatedUnion("type", [
-  z.object({
-    type: z.literal("text"),
-    text: z.string(),
-    /** 本机绝对路径，UI 直接 file:// 读，不存在「从远端拉字节」这一步。 */
-    images: z.array(z.string()).optional()
-  }),
-  z.object({
-    type: z.literal("attachment"),
-    path: z.string(),
-    caption: z.string().optional()
-  }),
-  z.object({
-    type: z.literal("widget"),
-    widget: z.string(),
-    props: z.record(z.unknown())
-  })
-]);
+
+/** 随文本气泡内嵌的图片。本机绝对路径，UI 直接 file:// 读。 */
+export const OutboundImage = z.object({
+  path: z.string(),
+  /** 悬停与全屏查看时的说明文字，也念给读屏。 */
+  alt: z.string().optional()
+});
+export type OutboundImage = z.infer<typeof OutboundImage>;
+
+/** 提问卡片的一个选项。value 缺省即 label；它会原样成为用户的回复文本。 */
+export const WidgetOption = z.object({
+  label: z.string().min(1),
+  value: z.string().optional(),
+  description: z.string().optional(),
+  style: z.enum(["default", "primary", "danger"]).optional()
+});
+export type WidgetOption = z.infer<typeof WidgetOption>;
+
+/** 结构化提问卡片：模型发选项问题，用户点选后选项值作为下一条用户消息回来。 */
+export const WidgetPayload = z.object({
+  prompt: z.string().min(1),
+  helpText: z.string().optional(),
+  options: z.array(WidgetOption).min(1).max(6),
+  /** 允许用户不选选项、自由输入回答。 */
+  allowCustom: z.boolean().optional()
+});
+export type WidgetPayload = z.infer<typeof WidgetPayload>;
+
+/**
+ * 旧版 text 载荷：字段名 `text`、images 是纯路径字符串。在解析边界统一规范化，
+ * 让仓库其余代码只面对新形状。
+ */
+function normalizeOutboundPayload(payload: unknown): unknown {
+  if (typeof payload !== "object" || payload === null) return payload;
+  const raw = payload as Record<string, unknown>;
+  if (raw.type !== "text") return payload;
+  const normalized: Record<string, unknown> = { ...raw };
+  if (typeof raw.text === "string" && raw.content === undefined) normalized.content = raw.text;
+  if (Array.isArray(raw.images)) {
+    normalized.images = raw.images.map((image) =>
+      typeof image === "string" ? { path: image } : image
+    );
+  }
+  return normalized;
+}
+
+export const OutboundMessage = z.preprocess(
+  normalizeOutboundPayload,
+  z.union([
+    z.object({
+      type: z.literal("text"),
+      content: z.string(),
+      images: z.array(OutboundImage).optional()
+    }),
+    z.object({
+      type: z.literal("attachment"),
+      path: z.string(),
+      caption: z.string().optional()
+    }),
+    z.object({
+      type: z.literal("widget"),
+      widget: WidgetPayload
+    }),
+    // 旧版 widget 是 name+props 透传（UI 如实渲染收到的内容）。保留该形状使
+    // 旧转录可读；UI 按 widget 字段是对象还是字符串区分两种渲染。
+    z.object({
+      type: z.literal("widget"),
+      widget: z.string(),
+      props: z.record(z.unknown()).optional()
+    })
+  ])
+);
 export type OutboundMessage = z.infer<typeof OutboundMessage>;
 
 export const TranscriptEvent = z.discriminatedUnion("type", [
@@ -65,7 +119,12 @@ export const TranscriptEvent = z.discriminatedUnion("type", [
     id: z.string(),
     seq: z.number().int(),
     createdAt: z.number(),
-    text: z.string()
+    text: z.string(),
+    /**
+     * 这条用户消息是对某个提问卡片（widget message 事件）的回答，值是那张卡
+     * 的事件 id。投影据此在卡片上标出选中项；旧转录与普通消息没有该字段。
+     */
+    widgetAnswerTo: z.string().optional()
   }),
   z.object({
     type: z.literal("wake"),
@@ -158,7 +217,9 @@ export const ViewBlock = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("user"),
     id: z.string(),
-    text: z.string()
+    text: z.string(),
+    /** 对提问卡片的回答：值是被回答的 message 块 id，UI 据此标出选中项。 */
+    widgetAnswerTo: z.string().optional()
   }),
   /**
    * 助手的「工作痕迹」：thinking 与非 SendMessage 工具卡。普通
@@ -351,7 +412,12 @@ export function projectAgent(
 
   for (const event of events) {
     if (event.type === "user") {
-      blocks.push({ type: "user", id: event.id, text: event.text });
+      blocks.push({
+        type: "user",
+        id: event.id,
+        text: event.text,
+        ...(event.widgetAnswerTo ? { widgetAnswerTo: event.widgetAnswerTo } : {})
+      });
       continue;
     }
     if (event.type === "wake") {

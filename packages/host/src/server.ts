@@ -4,6 +4,7 @@ import {
   AgentCreateParams,
   AgentIdParams,
   AgentSendParams,
+  AgentAnswerWidgetParams,
   AgentToolDecision,
   AgentUpdateParams,
   HostErrorCode,
@@ -66,6 +67,10 @@ export async function createHostServer(options: HostRuntimeOptions): Promise<Hos
       case HostMethods.agentSend: {
         const params = AgentSendParams.parse(raw);
         return runtime.send(params.id, params.content);
+      }
+      case HostMethods.agentAnswerWidget: {
+        const params = AgentAnswerWidgetParams.parse(raw);
+        return runtime.answerWidget(params.id, params.messageId, params.value);
       }
       case HostMethods.agentCancel:
         return runtime.cancel(AgentIdParams.parse(raw).id);

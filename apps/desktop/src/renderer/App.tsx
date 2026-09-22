@@ -392,6 +392,23 @@ export function App() {
     await approveAgent(activeId, resolution);
   }
 
+  async function answerWidgetAgent(id: string, messageId: string, value: string): Promise<void> {
+    try {
+      await window.nuum.host.request(HostMethods.agentAnswerWidget, { id, messageId, value });
+    } catch (error) {
+      patchPane(id, { notice: error instanceof Error ? error.message : String(error) });
+    }
+  }
+
+  function answerWidget(messageId: string, value: string): void {
+    if (!activeId) return;
+    void answerWidgetAgent(activeId, messageId, value);
+  }
+
+  function answerFloatingWidget(agentId: string, messageId: string, value: string): void {
+    void answerWidgetAgent(agentId, messageId, value);
+  }
+
   async function approveAgent(id: string, resolution: ToolResolution): Promise<void> {
     const pendingTool = (panes[id] ?? emptyPane).pendingTool;
     if (!pendingTool) return;
@@ -609,6 +626,7 @@ export function App() {
             onCancelCreate={cancelCreate}
             onCreateAgent={(profile) => void createAgent(profile)}
             onApprove={(resolution) => void approve(resolution)}
+            onAnswerWidget={answerWidget}
           />
         )}
         {workNotice ? <div className="sand-work-notice" role="alert">{t(workNotice)}</div> : null}
@@ -628,6 +646,7 @@ export function App() {
               onCancelCreate={() => undefined}
               onCreateAgent={() => undefined}
               onApprove={(resolution) => void approveAgent(floatingAgentId, resolution)}
+              onAnswerWidget={(messageId, value) => answerFloatingWidget(floatingAgentId, messageId, value)}
             />
           </div>
         ) : null}
@@ -855,7 +874,7 @@ function extractPreviewText(blocks: readonly ViewBlock[]): string | undefined {
   for (let index = blocks.length - 1; index >= 0; index -= 1) {
     const block = blocks[index]!;
     if (block.type === "user" || block.type === "peer") return block.text;
-    if (block.type === "message" && block.payload.type === "text") return block.payload.text;
+    if (block.type === "message" && block.payload.type === "text") return block.payload.content;
   }
   return undefined;
 }

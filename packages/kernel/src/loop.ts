@@ -28,6 +28,40 @@ export interface TurnDeps {
 const MAX_ROUNDS = 16;
 const ROUND_LIMIT_NOTICE = `Stopped after ${MAX_ROUNDS} tool rounds without a final answer.`;
 
+/**
+ * turn 循环的节奏提醒（对齐 Grok Bot 的 reminder middleware）：模型埋头调工具
+ * 时，用户那头看到的是长静默。按「距上次发声工具的调用数」注入一条合成 user
+ * 消息拉它回来 —— 只进本轮内存上下文，不 emit 事件，所以不落转录、不进下一轮。
+ * 每种提醒每个静默段只发一次；发声工具一调用就重置计数与段标记。
+ */
+const ACK_TOOL_THRESHOLD = 1;
+const SILENCE_TOOL_THRESHOLD = 6;
+const RESULT_TOOL_THRESHOLD = 0;
+
+type ReminderKind = "ack" | "silence" | "result";
+
+function reminderText(kind: ReminderKind, voice: string): string {
+  if (kind === "ack") {
+    return (
+      `<system_reminder>You opened this turn by calling tools without first acknowledging the user, ` +
+      `so they are watching silence and may think the app froze. Call ${voice} right now — a real tool ` +
+      `call, not text you write — with a one-line acknowledgement before any further tool call, then continue the work.</system_reminder>`
+    );
+  }
+  if (kind === "silence") {
+    return (
+      `<system_reminder>You have made several tool calls without a message, so the user is currently ` +
+      `watching silence. Call ${voice} now with a brief, specific update on what you are doing or what ` +
+      `you just found, then continue.</system_reminder>`
+    );
+  }
+  return (
+    `<system_reminder>The user cannot see tool output or your thinking — only ${voice} reaches them. ` +
+    `If you have produced a result or finished what they asked, send it with ${voice} before continuing ` +
+    `or ending the turn; if you are still mid-task, keep working and send it once you have it.</system_reminder>`
+  );
+}
+
 /** 取消是正常收束，不是错误，所以单独立一个信号，别混进 turn.error。 */
 class TurnCancelled extends Error {
   constructor() {
@@ -83,6 +117,11 @@ export function startTurn(
     // 委派工具也要进模型看得见的工具表，否则模型根本不会去调它。
     const tools = [...registry.list(params.localToolNames), ...params.delegatedTools];
     const messages = [...params.messages];
+    const voiceTools = new Set(params.voiceToolNames);
+    const voice = voiceTools.values().next().value ?? "SendMessage";
+    let toolCallsSinceVoice = 0;
+    let voiceSentThisTurn = false;
+    const reminded = new Set<ReminderKind>();
     for (let round = 0; round < MAX_ROUNDS; round += 1) {
       if (abort.signal.aborted) throw new TurnCancelled();
       const messageId = crypto.randomUUID();
@@ -138,6 +177,13 @@ export function startTurn(
           ok: result.ok,
           output: result.output
         });
+        if (voiceTools.has(call.name)) {
+          toolCallsSinceVoice = 0;
+          voiceSentThisTurn = true;
+          reminded.clear();
+        } else {
+          toolCallsSinceVoice += 1;
+        }
       }
       if (toolImages.length > 0) {
         messages.push({
@@ -145,6 +191,17 @@ export function startTurn(
           role: "user",
           content: "Images returned by the preceding local read tool calls.",
           images: toolImages,
+          seq: messages.length,
+          createdAt: Date.now()
+        });
+      }
+      const reminder = reminderToInject();
+      if (reminder != null) {
+        reminded.add(reminder);
+        messages.push({
+          id: `reminder-${reminder}-${crypto.randomUUID()}`,
+          role: "user",
+          content: reminderText(reminder, voice),
           seq: messages.length,
           createdAt: Date.now()
         });
@@ -158,6 +215,20 @@ export function startTurn(
       part: "text"
     });
     emit("turn.ended", { runId: params.runId, status: "idle" });
+
+    /** ack（从未发声）→ result（发过声又埋头）→ silence（长静默），每轮至多一条。 */
+    function reminderToInject(): ReminderKind | null {
+      if (!voiceSentThisTurn && toolCallsSinceVoice > ACK_TOOL_THRESHOLD && !reminded.has("ack")) {
+        return "ack";
+      }
+      if (voiceSentThisTurn && toolCallsSinceVoice > RESULT_TOOL_THRESHOLD && !reminded.has("result")) {
+        return "result";
+      }
+      if (toolCallsSinceVoice > SILENCE_TOOL_THRESHOLD && !reminded.has("silence")) {
+        return "silence";
+      }
+      return null;
+    }
   }
 
   async function resolveToolCall(

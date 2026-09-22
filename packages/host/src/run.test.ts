@@ -589,21 +589,22 @@ test("SendMessage is offered without being asked for, and lands as its own event
       runId: run.runId,
       toolCallId: "call-1",
       name: "SendMessage",
-      arguments: { type: "text", text: "hi there" }
+      arguments: { type: "text", content: "hi there" }
     },
     () => harness.kernel.results.length === 1,
     "SendMessage to be answered"
   );
-  assert.deepEqual(harness.kernel.results, [
-    { runId: run.runId, toolCallId: "call-1", ok: true, output: "Delivered." }
-  ]);
+  const receipt = harness.kernel.results[0]!;
+  assert.equal(receipt.ok, true);
+  // 回执带消息 id，模型后面能引用自己的气泡。
+  assert.match(receipt.output, /^Delivered\. \(id: [0-9a-f-]+\)$/);
 
   // 工作痕迹（assistant，带 tool_call）先落盘，气泡（message）紧随其后。
   assert.deepEqual(await harness.transcript(id), ["user", "assistant", "message"]);
   const blocks = (await harness.runtime.getAgent(id)).blocks;
   const bubble = blocks.find((block) => block.type === "message");
   assert.ok(bubble && bubble.type === "message" && bubble.payload.type === "text");
-  assert.equal((bubble as any).payload.text, "hi there");
+  assert.equal((bubble as any).payload.content, "hi there");
 
   const events = (await harness.runtime.getTranscript(id)).entries;
   const assistant = events.find((event) => event.type === "assistant")!;
@@ -623,7 +624,7 @@ test("a completed SendMessage stays valid on the next user turn", async (t) => {
       runId: first.runId,
       toolCallId: "call-1",
       name: "SendMessage",
-      arguments: { type: "text", text: "hello" }
+      arguments: { type: "text", content: "hello" }
     },
     () => harness.kernel.results.length === 1,
     "SendMessage to be delivered"
@@ -1206,7 +1207,7 @@ test("a wake that was already answered is not replayed after a restart", async (
   await harness.runtime.store.appendEvent(beta, {
     type: "message",
     id: crypto.randomUUID(),
-    payload: { type: "text", text: "done" },
+    payload: { type: "text", content: "done" },
     createdAt: Date.now()
   });
   await harness.runtime.dispose();

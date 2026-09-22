@@ -131,7 +131,7 @@ test("a wake that was answered is not replayed", () => {
   assert.equal(pendingWake(answered), null);
   const spoke: TranscriptEvent[] = [
     agentWake(1),
-    { type: "message", id: "m1", seq: 2, createdAt: 2, payload: { type: "text", text: "done" } }
+    { type: "message", id: "m1", seq: 2, createdAt: 2, payload: { type: "text", content: "done" } }
   ];
   assert.equal(pendingWake(spoke), null);
 });

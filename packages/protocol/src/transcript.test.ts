@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   appendAssistantDelta,
   eventFromChatMessage,
+  OutboundMessage,
   parseTranscriptLine,
   projectAgent
 } from "./transcript.js";
@@ -104,7 +105,7 @@ test("SendMessage projects only as its delivered bubble, not as a tool card or d
       createdAt: 2,
       parts: [
         { type: "text", text: "draft: maybe say hello" },
-        { type: "tool_call", id: "c1", name: "SendMessage", arguments: { type: "text", text: "hi" } }
+        { type: "tool_call", id: "c1", name: "SendMessage", arguments: { type: "text", content: "hi" } }
       ]
     },
     {
@@ -114,7 +115,7 @@ test("SendMessage projects only as its delivered bubble, not as a tool card or d
       createdAt: 3,
       assistantId: "a1",
       toolCallId: "c1",
-      payload: { type: "text", text: "hi" }
+      payload: { type: "text", content: "hi" }
     },
     {
       type: "tool",
@@ -295,4 +296,39 @@ test("projectAgent appends live thinking that is not yet on disk", () => {
     tools: [],
     live: true
   });
+});
+
+test("OutboundMessage normalizes legacy text payloads at the parse boundary", () => {
+  const legacy = { type: "text", text: "hi", images: ["/tmp/a.png", { path: "/tmp/b.png", alt: "b" }] };
+  const parsed = OutboundMessage.parse(legacy);
+  assert.deepEqual(parsed, {
+    type: "text",
+    content: "hi",
+    images: [{ path: "/tmp/a.png" }, { path: "/tmp/b.png", alt: "b" }]
+  });
+});
+
+test("OutboundMessage still reads legacy name+props widget payloads", () => {
+  const parsed = OutboundMessage.parse({ type: "widget", widget: "color-picker", props: { from: "#fff" } });
+  assert.deepEqual(parsed, { type: "widget", widget: "color-picker", props: { from: "#fff" } });
+});
+
+test("OutboundMessage accepts a structured widget payload", () => {
+  const payload = {
+    type: "widget",
+    widget: {
+      prompt: "Deploy to production?",
+      options: [
+        { label: "Deploy", value: "Yes, deploy now", style: "primary" },
+        { label: "Cancel", style: "danger" }
+      ],
+      allowCustom: true
+    }
+  };
+  const parsed = OutboundMessage.parse(payload);
+  assert.equal(parsed.type, "widget");
+  if (parsed.type === "widget" && typeof parsed.widget !== "string") {
+    assert.equal(parsed.widget.options[1]?.label, "Cancel");
+    assert.equal(parsed.widget.options[0]?.value, "Yes, deploy now");
+  }
 });

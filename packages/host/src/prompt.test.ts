@@ -26,7 +26,7 @@ test("segments come out in the designed order", () => {
   const render = renderSystemPrompt(input());
   assert.deepEqual(
     render.segments.map((segment) => segment.id),
-    ["identity", "agent-profile", "environment", "tool-guidance", "send-message"]
+    ["identity", "agent-profile", "environment", "tool-guidance", "send-message", "tone"]
   );
   // 段间是空行，段内是 markdown 标题 —— 不给整段套 XML。
   assert.equal(render.text, render.segments.map((segment) => segment.text).join("\n\n"));

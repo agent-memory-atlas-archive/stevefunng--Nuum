@@ -279,12 +279,14 @@ function eventToModelMessage(event: TranscriptEvent): ChatMessage[] {
 export function describeOutbound(payload: OutboundMessage): string {
   if (payload.type === "text") {
     const images = payload.images?.length ? `\n[sent ${payload.images.length} image(s)]` : "";
-    return `${payload.text}${images}`;
+    return `${payload.content}${images}`;
   }
   if (payload.type === "attachment") {
     return payload.caption ? `[sent ${payload.path}] ${payload.caption}` : `[sent ${payload.path}]`;
   }
-  return `[showed the ${payload.widget} widget]`;
+  // 结构化提问卡片给模型一句可读的摘要；旧版 name+props 透传保持原样。
+  if (typeof payload.widget === "string") return `[showed the ${payload.widget} widget]`;
+  return `[asked: ${payload.widget.prompt}]`;
 }
 
 export function deriveName(content: string): string {

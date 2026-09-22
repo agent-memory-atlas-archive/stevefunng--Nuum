@@ -60,7 +60,7 @@ test("repairTranscript pairs tool results by causal id instead of physical adjac
     id: "m1",
     seq: 3,
     createdAt: 3,
-    payload: { type: "text", text: "hi" }
+    payload: { type: "text", content: "hi" }
   });
   const tool = event({
     type: "tool",
@@ -90,7 +90,7 @@ test("assembleContext derives one valid model history from a corrupted legacy UI
         createdAt: 2,
         parts: [{ type: "tool_call", id: "call-1", name: "SendMessage", arguments: { type: "text", text: "hello" } }]
       },
-      { type: "message", id: "m1", seq: 3, createdAt: 3, payload: { type: "text", text: "hello" } },
+      { type: "message", id: "m1", seq: 3, createdAt: 3, payload: { type: "text", content: "hello" } },
       { type: "tool", id: "t1", seq: 4, createdAt: 4, toolCallId: "call-1", name: "SendMessage", content: "Delivered.", ok: true },
       { type: "assistant", id: "a2", seq: 5, createdAt: 5, parts: [{ type: "text", text: "private follow-up" }] },
       {
@@ -137,7 +137,7 @@ test("a persisted delivery derives a successful model ack when the tool result w
         createdAt: 2,
         assistantId: "a1",
         toolCallId: "call-1",
-        payload: { type: "text", text: "hello" }
+        payload: { type: "text", content: "hello" }
       }
     ]
   });

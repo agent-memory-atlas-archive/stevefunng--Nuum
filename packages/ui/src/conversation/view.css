@@ -764,3 +764,113 @@
   .sand-agent-create__appearance { grid-template-columns: 1fr; }
   .sand-agent-create__suggestions > div { grid-template-columns: 1fr; }
 }
+
+/* ── 提问卡片（SendMessage type=widget）──────────────────────────────────── */
+
+.sand-widget-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 260px;
+  max-width: 380px;
+}
+
+.sand-widget-card__prompt {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink, #1c1c1c);
+}
+
+.sand-widget-card__help {
+  margin: -4px 0 0;
+  font-size: 12.5px;
+  color: var(--ink-soft, #6b6b6b);
+}
+
+.sand-widget-card__options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sand-widget-card__option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  background: #fcfcfc;
+  font: inherit;
+  font-size: 13.5px;
+  color: inherit;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.sand-widget-card__option small {
+  font-size: 12px;
+  color: var(--ink-soft, #6b6b6b);
+}
+
+.sand-widget-card__option:hover:not(:disabled) {
+  background: rgba(119, 119, 119, 0.09);
+}
+
+.sand-widget-card__option[data-style="primary"]:not(:disabled) {
+  border-color: rgba(0, 0, 0, 0.55);
+  font-weight: 600;
+}
+
+.sand-widget-card__option[data-style="danger"]:not(:disabled) {
+  border-color: rgba(196, 49, 74, 0.5);
+  color: #a62646;
+}
+
+.sand-widget-card__option:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.sand-widget-card__option[data-chosen] {
+  border-color: rgba(0, 0, 0, 0.75);
+  background: rgba(119, 119, 119, 0.14);
+  opacity: 1;
+}
+
+.sand-widget-card__custom {
+  display: flex;
+  gap: 6px;
+}
+
+.sand-widget-card__custom input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  background: #fcfcfc;
+}
+
+.sand-widget-card__custom button {
+  padding: 7px 12px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(119, 119, 119, 0.14);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.sand-widget-card__custom button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.sand-widget-card__resolved {
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--ink-soft, #6b6b6b);
+}

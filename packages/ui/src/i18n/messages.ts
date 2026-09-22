@@ -1,4 +1,16 @@
 export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
+  "Or type your own answer…": {
+    "zh-CN": "或直接输入你的回答…",
+    "en": "Or type your own answer…"
+  },
+  "Your answer: {answer}": {
+    "zh-CN": "你的回答：{answer}",
+    "en": "Your answer: {answer}"
+  },
+  "Send": {
+    "zh-CN": "发送",
+    "en": "Send"
+  },
   "Could not save. Please try again.": {
     "zh-CN": "保存失败，请重试。",
     "en": "Could not save. Please try again."
