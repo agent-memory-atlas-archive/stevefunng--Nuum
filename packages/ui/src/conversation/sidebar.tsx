@@ -105,6 +105,11 @@ export function ConversationSidebar({
     });
   };
   const [query, setQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (searchOpen) searchRef.current?.focus();
+  }, [searchOpen]);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
   const [viewportWidth, setViewportWidth] = useState(() => window.innerWidth);
@@ -143,7 +148,7 @@ export function ConversationSidebar({
     .map((agent) => agent.profile.id);
 
   const projection = projectSidebarAgents(visible, organization);
-  // Nunu 与 work bar 合并成一条按最近动态排序的列表（对齐 Grok Bot 的会话列表）。
+  // Nunu 与 NunuBar 合并成一条按最近动态排序的列表（对齐 Grok Bot 的会话列表）。
   const mergedRows = useMemo(() => {
     const rows: ({ kind: "agent"; agent: AgentView } | { kind: "work"; work: WorkListItem })[] = [
       ...projection.unassigned.map((agent) => ({ kind: "agent" as const, agent })),
@@ -165,11 +170,11 @@ export function ConversationSidebar({
       { label: t("New group…"), icon: "plus", separator: true, disabled: busy, onSelect: select(() => { setNotice(""); setGroupDialog({ agentId: id, name: "" }); }) }
     ] : [
       { label: organization.pinnedAgentIds.includes(id) ? t("Unpin") : t("Pin"), icon: "pin", disabled: busy, onSelect: select(() => void commit(toggleSidebarPin(organization, id))) },
-      { label: organization.sections.length ? t("Move to group…") : t("Move to new group…"), icon: "folder", disabled: busy, onSelect: () => {
+      { label: organization.sections.length ? t("Move to group") : t("Move to new group"), icon: "folder", disabled: busy, onSelect: () => {
         if (organization.sections.length) setMenu({ ...menu, view: "groups" });
         else { closeMenu(); setNotice(""); setGroupDialog({ agentId: id, name: "" }); }
       } },
-      { label: t("Edit profile…"), icon: "edit", separator: true, onSelect: select(() => onEditAgent(id)) },
+      { label: t("Edit profile"), icon: "edit", separator: true, onSelect: select(() => onEditAgent(id)) },
       { label: t("Copy Agent ID"), icon: "copy", onSelect: select(() => {
         void navigator.clipboard.writeText(id).catch(() => setNotice(t("Could not copy Agent ID.")));
       }) }
@@ -199,13 +204,13 @@ export function ConversationSidebar({
       size={collapsed ? 40 : pinned ? 52 : 34} state={runtime.status === "running" ? "working" : "idle"} />
       {runtime.status === "running" ? <span className="sand-status-dot" /> : null}
     </span>
-    <span className="sand-agent-item__body"><span className="sand-agent-item__name">{profile.name}</span>
+    <span className="sand-agent-item__body"><strong className="sand-agent-item__name">{profile.name}</strong>
       <span className="sand-agent-item__preview">{previews[profile.id] || profile.description || t("New Agent")}</span></span>
     <span className="sand-agent-item__trailing"><span>{relativeTime(runtime.lastActivityAt)}</span>
       {runtime.status === "running" ? <span className="sand-agent-item__activity">{t("Working")}</span> : null}</span>
   </button>;
 
-  // work bar 行复用 agent 行的视觉语言，头像换成成员拼贴的群头像。
+  // NunuBar 行复用 agent 行的视觉语言，头像换成成员拼贴的群头像。
   const renderWorkRow = (work: WorkListItem) => {
     const memberIds = workMemberIds(work.id);
     return <button
@@ -222,7 +227,7 @@ export function ConversationSidebar({
           ? <WorkGroupAvatar memberIds={memberIds} agents={agents} size={collapsed ? 40 : 34} />
           : <span className="sand-work-item__mark" style={collapsed ? { width: 40, height: 40 } : undefined}>{work.name.slice(0, 1).toUpperCase()}</span>}
       </span>
-      <span className="sand-agent-item__body"><span className="sand-agent-item__name">{work.name}</span>
+      <span className="sand-agent-item__body"><strong className="sand-agent-item__name">{work.name}</strong>
         <span className="sand-agent-item__preview">{work.preview || work.description || t("New Work")}</span></span>
       <span className="sand-agent-item__trailing"><span>{relativeTime(work.lastActivityAt)}</span></span>
     </button>;
@@ -243,6 +248,17 @@ export function ConversationSidebar({
         {collapsed ? null : (
           <div className="sand-agents-sidebar__new-actions">
             <SandIconButton
+              aria-expanded={searchOpen || undefined}
+              aria-label={t("Search")}
+              className="sand-agents-sidebar__search-toggle"
+              icon="search"
+              label={t("Search")}
+              onClick={() => setSearchOpen((open) => !open)}
+              shape="circle"
+              size="sm"
+              title={t("Search")}
+            />
+            <SandIconButton
               aria-expanded={newMenu ? true : undefined}
               aria-haspopup="menu"
               aria-label={t("New")}
@@ -251,23 +267,25 @@ export function ConversationSidebar({
               icon="plus"
               label={t("New")}
               onClick={openNewMenu}
+              shape="circle"
               size="sm"
               title={t("New agent")}
             />
           </div>
         )}
       </header>
-      {collapsed ? null : (
+      {!collapsed && (searchOpen || query) ? (
         <label className="sand-agents-sidebar__search">
           <SandIcon name="search" size="sm" />
           <input
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t("Search")}
+            ref={searchRef}
             type="search"
             value={query}
           />
         </label>
-      )}
+      ) : null}
       <div className="sand-sidebar-pin-drop" data-agent-drop-section={PINNED_SECTION} aria-label={t("拖到此处置顶")} title={t("拖到此处置顶")}>
         <span>{t("拖到此处置顶")}</span>
       </div>
@@ -313,9 +331,10 @@ export function ConversationSidebar({
         <SandIconButton
           aria-label={t("Settings")}
           className="sand-agents-sidebar__settings"
-          icon="settings-gear"
+          icon="sliders"
           label={t("Settings")}
           onClick={onOpenSettings}
+          shape="circle"
           size="sm"
           title={t("Settings")}
         />

@@ -1368,6 +1368,8 @@ export class HostRuntime implements Partial<DelegateHost> {
           "PostToWork is your only voice in this Work: the shared room is where the user and teammates read your progress, and a message counts only once it is inside PostToWork. Plain text you write stays invisible.",
           "- Open with a short acknowledgement when a task arrives, then keep the room posted on meaningful beats — a step finished, a real result, a decision, a blocker, a change of plan. Never vanish into a long silent stretch, and do not narrate routine mechanics, retries, or minor snags.",
           "- Keep updates short and specific to what changed; fold trivial mechanics under one intent.",
+          "- Keep each message short and conversational — like quick texts in a busy room, not a status report. When an update has two or three beats, send them as a short run of two to four separate PostToWork calls instead of one welded paragraph.",
+          "- If nothing new has happened since your last update, say nothing until there is; an update the room doesn't need is noise everyone pays for.",
           "- HandoffTask is the only way to return an assigned task for review, report it blocked, or mark it done. An update is not a handoff.",
           "Your private Agent chat remains separate. SendMessage is unavailable in this run; do not move Work updates into the private transcript."
         ].join("\n")

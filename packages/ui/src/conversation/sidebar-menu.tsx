@@ -42,7 +42,7 @@ export function SidebarMenu({ point, items, onClose }: {
   </div>, document.body);
 }
 
-// "+"菜单：复刻 Grok Bot 的新建下拉 —— 两个动作行 + 已有 Nunu / Work Bar 罗列。
+// "+"菜单：复刻 Grok Bot 的新建下拉 —— 两个动作行 + 已有 Nunu / NunuBar 罗列。
 export function SidebarNewMenu({ anchor, agents, works, activeId, activeWorkId, onNewAgent, onNewWork, onOpen, onOpenWork, onClose }: {
   anchor: { left: number; top: number; width: number };
   agents: readonly AgentView[];
@@ -80,8 +80,8 @@ export function SidebarNewMenu({ anchor, agents, works, activeId, activeWorkId, 
     return () => { document.removeEventListener("pointerdown", outside, true); window.removeEventListener("blur", onClose); window.removeEventListener("resize", onClose); };
   }, [onClose]);
   const rows: { key: string; kind: "action" | "agent" | "work"; label: string; icon?: SandIconName; agent?: AgentView; work?: WorkListItem & { memberIds: readonly string[] }; active?: boolean; onSelect(): void }[] = [
-    { key: "new-nunu", kind: "action", label: t("Create new Nu-nu"), icon: "plus", onSelect: onNewAgent },
-    { key: "new-work", kind: "action", label: t("Create work bar"), icon: "people", onSelect: onNewWork },
+    { key: "new-nunu", kind: "action", label: t("Create new Nunu"), icon: "plus", onSelect: onNewAgent },
+    { key: "new-work", kind: "action", label: t("Create NunuBar"), icon: "people", onSelect: onNewWork },
     ...agents.map((agent) => ({
       key: agent.profile.id, kind: "agent" as const, label: agent.profile.name, agent,
       active: agent.profile.id === activeId, onSelect: () => onOpen(agent.profile.id)

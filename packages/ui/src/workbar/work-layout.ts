@@ -28,5 +28,5 @@ export function writeInspectorPreference(preference: InspectorPreference) {
 }
 
 export function workDisplayTitle(name: string): string {
-  return name.replace(/^work\s*bar\s*[·:：—–-]\s*/i, "").trim() || name;
+  return name.replace(/^(?:work\s*bar|nunubar)\s*[·:：—–-]\s*/i, "").trim() || name;
 }

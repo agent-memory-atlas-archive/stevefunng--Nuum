@@ -11,7 +11,7 @@
 }
 .sand-work-board button:where(:not(.sand-prompt-send)), .sand-work-dialog button, .sand-work-create button {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 6px 11px;
-  color: var(--nuum-text-secondary); font: inherit; font-size: 11px; font-weight: 500;
+  color: var(--nuum-text-secondary); font: inherit; font-size: 11px; font-weight: 400;
   background: var(--work-control); border: 1px solid var(--work-edge); border-radius: 9px; cursor: pointer;
   box-shadow: 0 1px 2px #00000006;
   transition: background 160ms ease, border-color 160ms ease, box-shadow 180ms ease, transform 180ms ease, color 160ms ease;
@@ -30,19 +30,19 @@
 .sand-work-board { display: flex; flex: 1; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; background: var(--nuum-bg-editor); container-type: inline-size; }
 .sand-work-board__header { display: flex; flex: 0 0 70px; min-width: 0; align-items: center; justify-content: space-between; gap: 24px; padding: 14px 28px; }
 .sand-work-board__header > div:first-child { min-width: 0; }
-.sand-work-board__header h1 { margin: 0; color: var(--nuum-text-primary); font-size: 23px; line-height: 1.3; font-weight: 600; letter-spacing: -.65px; overflow-wrap: anywhere; }
+.sand-work-board__header h1 { margin: 0; color: var(--nuum-text-primary); font-size: 23px; line-height: 1.3; font-weight: 500; letter-spacing: -.65px; overflow-wrap: anywhere; }
 .sand-work-board__summary { display: flex; flex-shrink: 0; align-items: center; gap: 14px; color: var(--nuum-text-tertiary); font-size: 10px; }
 .sand-work-board__summary > span { display: flex; align-items: center; gap: 6px; }
 .sand-work-board__summary i { width: 5px; height: 5px; background: var(--nuum-text-green-primary); border-radius: 50%; }
 .sand-work-board__main { display: grid; grid-template-columns: minmax(0, 1fr) var(--work-inspector-width); flex: 1; min-height: 0; border-top: 1px solid var(--work-edge); }
 .sand-work-board__center { overflow: hidden; container-name: work-center; container-type: inline-size; position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--work-surface); }
 .sand-work-page-heading { display: flex; flex: 0 0 65px; align-items: center; justify-content: space-between; padding: 12px 24px; gap: 12px; }
-.sand-work-board .sand-work-page-switch { padding: 7px 12px; gap: 8px; background: var(--work-surface); border: 1px solid color-mix(in srgb, var(--nuum-text-primary) 4%, transparent); border-radius: 8px; box-shadow: var(--work-relief); white-space: nowrap; }
-.sand-work-board .sand-work-page-switch:hover { box-shadow: 0 1px 3px #0000000d; }
+.sand-work-board .sand-work-page-switch { padding: 6px 13px; gap: 8px; background: color-mix(in srgb, var(--nuum-bg-elevated) 92%, transparent); border: 1px solid var(--nuum-stroke-tertiary); border-radius: 999px; box-shadow: 0 5px 14px -8px var(--nuum-shadow-primary), inset 0 1px 0 color-mix(in srgb, white 26%, transparent); white-space: nowrap; }
+.sand-work-board .sand-work-page-switch:hover { background: var(--nuum-bg-elevated); box-shadow: 0 7px 18px -9px var(--nuum-shadow-primary), inset 0 1px 0 color-mix(in srgb, white 32%, transparent); transform: translateY(-1px); }
 .sand-work-board .sand-work-page-switch:active { box-shadow: inset 0 1px 3px #0000000a; }
 .sand-work-page-switch > span { color: var(--nuum-text-tertiary); font-size: 11px; font-weight: 400; }
 .sand-work-page-heading > .sand-work-quiet-button { white-space: nowrap; }
-.sand-work-page-switch strong { font-size: 14px; font-weight: 600; color: var(--nuum-text-primary); }
+.sand-work-page-switch strong { font-size: 14px; font-weight: 500; color: var(--nuum-text-primary); }
 .sand-work-page-switch small { font-size: 10px; color: var(--nuum-text-tertiary); }
 .sand-work-pages { flex: 1; min-height: 0; min-width: 0; perspective: 1600px; overflow: hidden; }
 .sand-work-pages__rotor { position: relative; width: 100%; height: 100%; transform-style: preserve-3d; transition: transform 380ms cubic-bezier(.22,.7,.2,1); }
@@ -55,10 +55,12 @@
 .sand-work-state-dots button > span { width: 4px; height: 4px; border-radius: 50%; background: var(--nuum-text-tertiary); opacity: .4; transition: opacity 160ms ease, transform 160ms ease; }
 .sand-work-state-dots button[aria-pressed="true"] > span { opacity: 1; background: var(--nuum-text-secondary); transform: scale(1.3); }
 .sand-work-state-dots button:hover > span { opacity: 1; }
-.sand-work-state-popover { position: absolute; bottom: 100%; left: 50%; width: min(560px, 100%); padding: 7px 0 4px; visibility: hidden; opacity: 0; transform: translate(-50%, 6px); transition: opacity 150ms ease, transform 180ms ease, visibility 180ms; }
+.sand-work-state-popover { position: absolute; bottom: 100%; left: 50%; width: max-content; max-width: 100%; padding: 7px 0 4px; visibility: hidden; opacity: 0; transform: translate(-50%, 6px); transition: opacity 150ms ease, transform 180ms ease, visibility 180ms; }
 .sand-work-state-picker:hover .sand-work-state-popover, .sand-work-state-picker:has(button:focus-visible) .sand-work-state-popover { visibility: visible; opacity: 1; transform: translate(-50%, 0); }
-.sand-work-state-nav { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); padding: 3px; gap: 2px; border: 1px solid var(--work-edge); border-radius: 10px; background: var(--nuum-bg-editor); box-shadow: 0 4px 16px -6px var(--nuum-shadow-primary); }
-.sand-work-state-nav button { flex-direction: column; gap: 1px; min-width: 0; padding: 6px 2px; font-size: 10px; white-space: nowrap; border: 0; background: transparent; border-radius: 6px; box-shadow: none; }
+/* 列数跟随实际投影出的状态数（现在为三态），整条居中、宽度收缩包裹。
+   minmax 下限保证按钮在窄窗口里不会被压到贴字。 */
+.sand-work-state-nav { display: inline-grid; grid-auto-flow: column; grid-auto-columns: minmax(72px, 1fr); padding: 3px; gap: 3px; border: 1px solid var(--work-edge); border-radius: 10px; background: var(--nuum-bg-editor); box-shadow: 0 4px 16px -6px var(--nuum-shadow-primary); }
+.sand-work-state-nav button { flex-direction: column; gap: 1px; min-width: 0; padding: 7px 12px; font-size: 10px; white-space: nowrap; border: 0; background: transparent; border-radius: 7px; box-shadow: none; }
 .sand-work-state-nav button small { color: var(--nuum-text-tertiary); font-size: 9px; font-variant-numeric: tabular-nums; }
 .sand-work-state-nav button[aria-pressed="true"] { color: var(--nuum-text-primary); background: var(--work-surface); box-shadow: 0 1px 3px #00000009; }
 .sand-work-lanes { position: relative; display: grid; grid-auto-columns: minmax(200px, 1fr); grid-auto-flow: column; flex: 1; min-height: 0; min-width: 0; gap: 18px; padding: 0 24px 18px; overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain; scroll-padding-left: 24px; }
@@ -71,9 +73,10 @@
 [data-state="blocked"] .sand-work-state-dot { border-color: var(--nuum-text-orange-primary); background: var(--nuum-text-orange-primary); }
 [data-state="done"] .sand-work-state-dot { border-color: var(--nuum-text-green-primary); background: var(--nuum-text-green-primary); }
 [data-state="review"] .sand-work-state-dot { border-color: var(--nuum-text-magenta-primary); }
-.sand-work-lane__cards { display: flex; flex: 1; flex-direction: column; gap: 14px; min-height: 0; margin: 0 -6px; padding: 17px 6px; overflow-y: auto; scrollbar-width: thin; }
-.sand-work-board .sand-work-task-card { display: flex; flex: 0 0 auto; flex-direction: column; align-items: stretch; justify-content: space-between; min-height: 112px; padding: 15px; gap: 18px; color: var(--nuum-text-primary); background: var(--work-surface); border: 1px solid color-mix(in srgb, var(--nuum-text-primary) 3%, transparent); border-radius: 10px; text-align: left; box-shadow: var(--work-relief); transition: box-shadow 160ms ease, border-color 160ms ease; }
-.sand-work-board .sand-work-task-card:hover { background: var(--work-surface); border-color: var(--work-edge); transform: none; box-shadow: 0 1px 3px color-mix(in srgb, var(--nuum-text-primary) 9%, transparent); }
+.sand-work-lane__cards { display: flex; flex: 1; flex-direction: column; gap: 14px; min-height: 0; margin: 0 -6px; padding: 17px 6px; overflow-y: auto; scrollbar-width: none; }
+.sand-work-lane__cards::-webkit-scrollbar { display: none; }
+.sand-work-board .sand-work-task-card { display: flex; flex: 0 0 auto; flex-direction: column; align-items: stretch; justify-content: space-between; min-height: 112px; padding: 15px; gap: 18px; color: var(--nuum-text-primary); background: var(--nuum-bg-elevated); border: 1px solid var(--work-edge); border-radius: 10px; text-align: left; box-shadow: var(--work-relief); transition: box-shadow 160ms ease, border-color 160ms ease; }
+.sand-work-board .sand-work-task-card:hover { border-color: color-mix(in srgb, var(--nuum-text-primary) 16%, transparent); transform: none; box-shadow: 0 1px 3px color-mix(in srgb, var(--nuum-text-primary) 9%, transparent); }
 .sand-work-board .sand-work-task-card:active { box-shadow: inset 0 1px 4px var(--nuum-shadow-tertiary); }
 .sand-work-task-card strong { font-size: 12px; font-weight: 550; line-height: 1.6; overflow-wrap: anywhere; letter-spacing: -.1px; }
 .sand-work-task-card p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: -10px 0 0; font-size: 10px; color: var(--nuum-text-secondary); font-weight: 400; }
@@ -95,7 +98,8 @@
 .sand-work-capability-item strong { font-size: 11px; font-weight: 500; overflow-wrap: anywhere; }
 .sand-work-capability-item small { font-size: 9px; color: var(--nuum-text-tertiary); text-transform: capitalize; }
 .sand-work-inspector__members { display: flex; flex: 1; flex-direction: column; min-width: 0; min-height: 0; padding: 20px 17px; overflow-y: auto; }
-.sand-work-members { display: flex; flex-direction: column; min-height: 0; gap: 10px; overflow-y: auto; scrollbar-width: thin; padding: 3px; margin: -3px; }
+.sand-work-members { display: flex; flex-direction: column; min-height: 0; gap: 10px; overflow-y: auto; scrollbar-width: none; padding: 3px; margin: -3px; }
+.sand-work-members::-webkit-scrollbar { display: none; }
 .sand-work-member { display: flex; flex: 0 0 auto; align-items: center; gap: 6px; min-width: 0; padding: 10px 8px; border: 1px solid var(--work-edge); border-radius: 9px; background: var(--nuum-bg-editor); cursor: grab; touch-action: none; }
 .sand-work-member .sand-work-member__identity { display: flex; flex: 1; justify-content: flex-start; min-width: 0; gap: 9px; padding: 0; text-align: left; background: transparent; border: 0; box-shadow: none; cursor: inherit; }
 .sand-work-member .sand-work-member__identity:hover { background: transparent; }
@@ -104,9 +108,14 @@
 .sand-work-member__identity small { color: var(--nuum-text-tertiary); font-size: 9px; text-transform: capitalize; }
 .sand-work-member > button:last-child { width: 24px; min-height: 24px; padding: 0; background: transparent; border: 0; box-shadow: none; opacity: .4; }
 .sand-work-member:hover > button:last-child, .sand-work-member:focus-within > button:last-child { opacity: 1; }
-.sand-work-member-drop-hint { display: flex; flex: 0 0 auto; flex-direction: column; align-items: center; gap: 8px; margin-top: 14px; padding: 25px 10px; border: 1px dashed var(--work-edge); border-radius: 10px; color: var(--nuum-text-tertiary); text-align: center; }
-.sand-work-member-drop-hint strong { font-size: 10px; font-weight: 450; color: var(--nuum-text-secondary); }
-.sand-work-member-drop-hint span { max-width: 165px; font-size: 10px; line-height: 1.7; }
+/* 成员投放提示平时静默，只在拖拽时出现（对齐侧栏置顶提示的行为）。 */
+.sand-work-member-drop-hint { display: none; flex: 0 0 auto; flex-direction: column; align-items: center; gap: 12px; margin-top: 14px; padding: 22px 12px; border: 1px dashed var(--work-edge); border-radius: 10px; color: var(--nuum-text-tertiary); text-align: center; }
+.sand-work-member-drop-hint .ui-icon { color: var(--nuum-text-tertiary); }
+.sand-work-member-drop-hint strong { font-size: 11px; font-weight: 500; line-height: 1.6; color: var(--nuum-text-secondary); }
+body[data-agent-dragging="agent"] .sand-work-member-drop-hint,
+body[data-agent-dragging="member"] .sand-work-member-drop-hint { display: flex; animation: sand-work-hint-enter 140ms ease-out; }
+@keyframes sand-work-hint-enter { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { body[data-agent-dragging="agent"] .sand-work-member-drop-hint, body[data-agent-dragging="member"] .sand-work-member-drop-hint { animation: none; } }
 .sand-work-chat-dock { --work-chat-panel-inset: max(clamp(18px, 4%, 40px), calc((100% - 760px) / 2)); position: relative; z-index: 3; flex: 0 0 auto; margin: 4px 0 0; padding: 0 max(clamp(36px, 7%, 64px), calc((100% - 640px) / 2)) 12px; }
 .sand-work-chat__composer { position: relative; z-index: 1; margin: 0; font-size: var(--nuum-font-size-base, 13px); }
 .sand-work-chat__composer .sand-prompt-shell { grid-template-columns: minmax(0, 1fr) 30px; padding-left: 18px; }
@@ -118,15 +127,24 @@
 .sand-work-chat-dock[data-open] .sand-work-chat-sheet { visibility: visible; opacity: 1; transform: translateY(0); }
 .sand-work-chat-sheet__content > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 10px; font-size: 11px; font-weight: 550; }
 .sand-work-chat-sheet__content > header small { margin-left: 5px; color: var(--nuum-text-tertiary); font-size: 9px; font-weight: 400; }
-.sand-work-chat__timeline { display: flex; flex: 1; min-height: 0; flex-direction: column; align-items: flex-start; gap: 12px; overflow: auto; scrollbar-width: thin; }
+.sand-work-chat__timeline { display: flex; flex: 1; min-height: 0; flex-direction: column; align-items: flex-start; gap: 12px; overflow: auto; scrollbar-width: none; }
+.sand-work-chat__timeline::-webkit-scrollbar { display: none; }
 .sand-work-chat__empty { margin: auto; color: var(--nuum-text-tertiary); font-size: 11px; }
 .sand-work-chat__message { max-width: 90%; padding: 9px 12px; background: var(--work-surface); border-radius: 8px; }
 .sand-work-chat__message span { color: var(--nuum-text-tertiary); font-size: 10px; }
 .sand-work-chat__message p { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; user-select: text; line-height: 1.7; }
-.sand-work-task-detail { display: grid; gap: 20px; font-size: 12px; }
+.sand-work-task-detail { display: grid; gap: 18px; font-size: 12px; }
 .sand-work-task-detail h3 { margin: 0 0 9px; font-size: 11px; font-weight: 550; }
 .sand-work-task-detail p { margin: 0; color: var(--nuum-text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; }
 .sand-work-task-detail ul { margin: 0; padding-left: 18px; color: var(--nuum-text-secondary); }
+/* 任务简报：详情里的着重块，比正文更大更重、带边界。 */
+.sand-work-task-detail__summary { padding: 13px 15px; font-size: 13px; line-height: 1.75; font-weight: 500; color: var(--nuum-text-primary); background: var(--nuum-bg-elevated); border: 1px solid var(--work-edge); border-radius: 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* 参与者：头像 + 名字并排。 */
+.sand-work-task-people { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 12px 20px; font-size: 11px; }
+.sand-work-task-people > span:first-child { color: var(--nuum-text-tertiary); }
+.sand-work-task-people__list { display: flex; flex-wrap: wrap; gap: 12px; }
+.sand-work-task-person { display: inline-flex; align-items: center; gap: 7px; }
+.sand-work-task-person strong { font-size: 11px; font-weight: 500; }
 .sand-work-task-meta { display: grid; grid-template-columns: auto 1fr; gap: 9px 20px; font-size: 11px; }
 .sand-work-task-meta span { color: var(--nuum-text-tertiary); }
 .sand-work-task-meta strong { font-weight: 450; text-transform: capitalize; }
@@ -140,7 +158,7 @@
 .sand-work-deliverables__empty { display: flex; grid-column: 1/-1; flex-direction: column; align-items: center; justify-content: center; height: min(340px, 45vh); color: var(--nuum-text-tertiary); }
 .sand-work-deliverables__empty h2 { margin: 18px 0 8px; color: var(--nuum-text-secondary); font-size: 14px; font-weight: 500; }
 .sand-work-deliverables__empty p { margin: 0; font-size: 11px; }
-.sand-work-deliverable { min-width: 0; padding: 18px; border-radius: 10px; background: var(--work-surface); box-shadow: var(--work-relief); }
+.sand-work-deliverable { min-width: 0; padding: 18px; background: var(--nuum-bg-elevated); border: 1px solid var(--work-edge); border-radius: 10px; box-shadow: var(--work-relief); }
 .sand-work-deliverable__file { display: flex; align-items: center; gap: 12px; }
 .sand-work-deliverable__file > div { min-width: 0; }
 .sand-work-deliverable h2 { margin: 0 0 5px; font-size: 12px; font-weight: 550; overflow-wrap: anywhere; }
@@ -230,5 +248,5 @@
 .sand-work-resize--vertical::after { height: 2px; top: 4px; left: 0; right: 0; }
 
 @container work-center (max-width: 480px) {
-  .sand-work-state-nav button { font-size: 9px; letter-spacing: -.1px; }
+  .sand-work-state-nav button { font-size: 9px; padding: 6px 10px; }
 }

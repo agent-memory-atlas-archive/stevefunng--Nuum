@@ -78,8 +78,8 @@ export function resolveAgentAvatarMaterial(agentId: string, requested?: string |
 const HIDDEN_CHANCE = 0.03;
 
 /**
- * 创建 Nu-nu 时随机定一套形象（色彩 × 形状 × 材质）。材质分普通三档与极光隐藏款，
- * 隐藏款小概率出现；结果在创建时写进 profile，之后与该 Nu-nu 永久绑定。
+ * 创建 Nunu 时随机定一套形象（色彩 × 形状 × 材质）。材质分普通三档与极光隐藏款，
+ * 隐藏款小概率出现；结果在创建时写进 profile，之后与该 Nunu 永久绑定。
  */
 export function rollAgentAvatar(): { color: string; shape: string; material: string } {
   const materialRoll = Math.random();
@@ -256,9 +256,22 @@ export function AgentAvatar({
 
 const WORK_GROUP_MAX_MEMBERS = 4;
 
+function workGroupSlots(count: number, frame: number): Array<{ x: number; y: number; size: number }> {
+  if (count <= 1) return [{ x: 0, y: 0, size: frame }];
+  if (count === 2) {
+    const size = frame * 2 / 3;
+    return [{ x: 0, y: 0, size }, { x: frame - size, y: frame - size, size }];
+  }
+  const size = frame * 5 / 9;
+  const offset = frame - size;
+  return count === 3
+    ? [{ x: offset / 2, y: 0, size }, { x: 0, y: offset, size }, { x: offset, y: offset, size }]
+    : [{ x: 0, y: 0, size }, { x: offset, y: 0, size }, { x: 0, y: offset, size }, { x: offset, y: offset, size }];
+}
+
 /**
- * Work bar 的群头像：成员的 Nu-nu 头像拼进一个圆角方块，样式取自 Grok Bot
- * 的群聊头像（每个成员占一个象限）。成员 id 就够了 —— 头像色可由 id 哈希推出，
+ * Work bar 的群头像：成员的 Nunu 头像拼进一个圆角方块，样式取自 Grok Bot
+ * 的群聊头像（2 人错位叠放，3–4 人紧凑拼贴）。成员 id 就够了 —— 头像色可由 id 哈希推出，
  * agents 只用来尊重用户自定义的头像色与形状。
  */
 export function WorkGroupAvatar({
@@ -279,7 +292,7 @@ export function WorkGroupAvatar({
     return <AgentAvatar agentId={memberIds[0]!} color={agent?.profile.avatarColor} shape={agent?.profile.avatarShape} material={agent?.profile.avatarMaterial} size={size} className={className} />;
   }
   const shown = memberIds.slice(0, WORK_GROUP_MAX_MEMBERS);
-  const cell = Math.ceil(size / 2);
+  const slots = workGroupSlots(shown.length, size);
   return (
     <span
       aria-hidden="true"
@@ -287,11 +300,12 @@ export function WorkGroupAvatar({
       data-count={shown.length}
       style={{ width: size, height: size } as CSSProperties}
     >
-      {shown.map((id) => {
+      {shown.map((id, index) => {
         const agent = profileOf(id);
+        const slot = slots[index]!;
         return (
-          <span key={id} className="sand-work-avatar__cell">
-            <AgentAvatar agentId={id} color={agent?.profile.avatarColor} shape={agent?.profile.avatarShape} material={agent?.profile.avatarMaterial} size={Math.ceil(cell * 1.4)} />
+          <span key={id} className="sand-work-avatar__cell" style={{ left: slot.x, top: slot.y, width: slot.size, height: slot.size }}>
+            <AgentAvatar agentId={id} color={agent?.profile.avatarColor} shape={agent?.profile.avatarShape} material={agent?.profile.avatarMaterial} size={slot.size} />
           </span>
         );
       })}

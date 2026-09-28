@@ -19,3 +19,9 @@ apps/desktop/release
 /docs/architecture-proactive-workbar.md
 /docs/handoff-agent-first.md
 /docs/handoff-bot-infra.md
+
+# ZCode workspace data (session plans, tool state)
+.zcode/
+
+# npm lockfile — this repo uses pnpm
+package-lock.json

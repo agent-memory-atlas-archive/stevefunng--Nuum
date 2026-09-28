@@ -2,7 +2,7 @@ import { BrowserWindow, Menu, Tray, nativeImage, screen, type NativeImage } from
 import path from "node:path";
 import { HostMethods, type ProactiveSnapshot } from "@nuum/protocol";
 
-// A monochrome Nu-nu face; template rendering follows macOS menu-bar contrast.
+// A monochrome Nunu face; template rendering follows macOS menu-bar contrast.
 function trayImage(here: string, active: boolean): NativeImage {
   const name = active ? "proactive-onTemplate.png" : "proactive-offTemplate.png";
   const image = nativeImage.createFromPath(path.join(here, "../../resources", name));

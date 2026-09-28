@@ -8,9 +8,9 @@ test("language switching keeps product terminology and user content intact", () 
     for (const language of ["zh-CN", "en"] as const) {
       setLanguage(language);
       assert.equal(getLanguage(), language);
-      assert.equal(t("Agents"), "Nu-nu");
-      assert.equal(t("Work Bar"), "work bar");
-      const name = "Agents Work Bar {count} 牛来";
+      assert.equal(t("Agents"), "Nunu");
+      assert.equal(t("NunuBar"), "NunuBar");
+      const name = "Agents NunuBar {count} 牛来";
       assert.ok(t("Message {name}", { name }).includes(name));
       assert.equal(t("unknown diagnostic /local/path"), "unknown diagnostic /local/path");
     }
@@ -26,6 +26,6 @@ test("every interface message has both languages and matching placeholders", () 
     assert.ok(versions["zh-CN"].trim(), key);
     const tokens = (value: string) => [...value.matchAll(/\{\w+\}/g)].map(([token]) => token).sort();
     assert.deepEqual(tokens(versions.en), tokens(versions["zh-CN"]), key);
-    assert.doesNotMatch(versions.en, /\bAgents?\b|\bWork Bar\b/, key);
+    assert.doesNotMatch(versions.en, /\bAgents?\b|\bwork\s*bar\b/i, key);
   }
 });

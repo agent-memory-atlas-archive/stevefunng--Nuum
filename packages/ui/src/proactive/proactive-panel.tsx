@@ -18,7 +18,7 @@ export function ProactivePanel({ snapshot, busy, error, onConfigure, onCheck, on
     <header className="nuum-proactive-heading"><span className="nuum-proactive-wordmark">Nuum</span><span>Proactive mode</span></header>
     <section className="nuum-proactive-status" data-state={state}>
       <div className="nuum-proactive-status__top"><span className="nuum-proactive-status__dot" /><span>{t(snapshot ? STATES[state] : "Connecting to Nuum…")}</span></div>
-      <h1>{agent?.name ?? "Nu-nu"}</h1>
+      <h1>{agent?.name ?? "Nunu"}</h1>
       <p>{t(state === "paused" ? "Your companion will resume after this break." : "A quieter kind of help, at the right moment.")}</p>
       <div className="nuum-proactive-toggle-row"><span>{t("Proactive mode")}</span>
         <button className="sand-switch" role="switch" aria-label={t("Enable proactive mode")} aria-checked={agent?.policy.enabled ?? false} disabled={busy || !snapshot}
@@ -42,6 +42,6 @@ export function ProactivePanel({ snapshot, busy, error, onConfigure, onCheck, on
       {!agent?.activity.length ? <p>{t("Activity will appear here when you turn it on.")}</p> : <ol>{agent.activity.slice(0, 3).map((item) => <li key={item.id}><span>{t(ACTIVITIES[item.kind])}</span><time>{new Date(item.at).toLocaleTimeString(getLanguage(), { hour: "2-digit", minute: "2-digit" })}</time></li>)}</ol>}
     </section>
     {error ? <div className="nuum-proactive-error" role="alert">{t("Could not update proactive mode.")}<button onClick={onRetry}>{t("Retry")}</button></div> : null}
-    <footer className="nuum-proactive-footer"><button onClick={() => agent ? onOpenAgent(agent.agentId) : onOpenMain()}>{t(agent ? "Open Nu-nu" : "Open Nuum")}<SandIcon name="chevron-right" size={12} /></button><button onClick={onQuit}>{t("Quit")}</button></footer>
+    <footer className="nuum-proactive-footer"><button onClick={() => agent ? onOpenAgent(agent.agentId) : onOpenMain()}>{t(agent ? "Open Nunu" : "Open Nuum")}<SandIcon name="chevron-right" size={12} /></button><button onClick={onQuit}>{t("Quit")}</button></footer>
   </main>;
 }

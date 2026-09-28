@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { AgentAvatar } from "../conversation/agent-avatar";
 import { SandIcon } from "../kit/sand-kit-primitives";
 
-import { taskLanes, workDeliverables, type TaskView } from "./work-projection";
+import { taskLanes, completedTasks, workDeliverables, type TaskView } from "./work-projection";
 export const STATE_LABELS: Record<WorkTaskState, string> = {
   proposed: "Proposed", ready: "Ready", in_progress: "In progress", blocked: "Blocked",
   review: "Review", done: "Done", cancelled: "Cancelled"
@@ -15,7 +15,7 @@ export function TaskLanes({ tasks, agents, onOpen }: {
 }) {
   const board = useRef<HTMLDivElement>(null);
   const lanes = useRef(new Map<WorkTaskState, HTMLElement>());
-  const [focusedState, setFocusedState] = useState<WorkTaskState>("proposed");
+  const [focusedState, setFocusedState] = useState<WorkTaskState>("ready");
   const groups = taskLanes(tasks);
   const focusState = (state: WorkTaskState) => {
     setFocusedState(state);
@@ -74,20 +74,30 @@ export function TaskLanes({ tasks, agents, onOpen }: {
   </>;
 }
 
-export function WorkDeliverables({ tasks, onOpenTask }: { tasks: readonly TaskView[]; onOpenTask(id: string): void }) {
+export function WorkDeliverables({ tasks, agents, onOpenTask }: { tasks: readonly TaskView[]; agents: readonly AgentView[]; onOpenTask(id: string): void }) {
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [copyError, setCopyError] = useState("");
-  const deliverables = workDeliverables(tasks);
+  const completed = completedTasks(tasks);
+  const files = workDeliverables(completed);
   return <div className="sand-work-deliverables">
-    {deliverables.length === 0 ? <div className="sand-work-deliverables__empty"><SandIcon name="attach" size={22} /><h2>{t("暂无产物")}</h2><p>{t("Agent 团队交付的文件会汇集在这里。")}</p></div> : null}
-    {deliverables.map(({ file, task }) => <article className="sand-work-deliverable" key={`${task.id}:${file.id}`}>
-      <div className="sand-work-deliverable__file"><SandIcon name="attach" size={18} /><div><h2>{file.name}</h2><small>{file.mimeType ?? t("File")} · {new Date(file.createdAt).toLocaleDateString(getLanguage())}</small></div></div>
-      <p className="sand-work-deliverable__uri" title={file.uri}>{file.uri}</p>
-      <footer><button className="sand-work-quiet-button" type="button" onClick={() => onOpenTask(task.id)}>{task.title}</button><button type="button" onClick={async () => {
-        try { await navigator.clipboard.writeText(file.uri); setCopiedId(file.id); setCopyError(""); }
-        catch { setCopyError(t("无法复制，请选择上方路径手动复制。")); }
-      }}>{copiedId === file.id ? t("已复制") : t("复制路径")}</button></footer>
+    {completed.length === 0 ? <div className="sand-work-deliverables__empty"><SandIcon name="attach" size={22} /><h2>{t("暂无产物")}</h2><p>{t("Agent 团队交付的文件会汇集在这里。")}</p></div> : null}
+    {completed.map((task) => <article className="sand-work-deliverable sand-work-deliverable--task" key={task.id}>
+      <button className="sand-work-deliverable__task" type="button" onClick={() => onOpenTask(task.id)}>
+        <div className="sand-work-deliverable__head">
+          <h2>{task.title}</h2>
+          <small className="sand-work-deliverable__state" data-state={task.state}>{t(STATE_LABELS[task.state])}</small>
+        </div>
+        <p className="sand-work-deliverable__uri">{task.assigneeIds.length ? task.assigneeIds.map((id) => agents.find((agent) => agent.profile.id === id)?.profile.name ?? t("Agent")).join(", ") : t("Unassigned")}</p>
+      </button>
+      {task.deliverables.map((file) => <div className="sand-work-deliverable__file-row" key={file.id}>
+        <div className="sand-work-deliverable__file"><SandIcon name="attach" size={18} /><div><h2>{file.name}</h2><small>{file.mimeType ?? t("File")} · {new Date(file.createdAt).toLocaleDateString(getLanguage())}</small></div></div>
+        <button type="button" onClick={async () => {
+          try { await navigator.clipboard.writeText(file.uri); setCopiedId(file.id); setCopyError(""); }
+          catch { setCopyError(t("无法复制，请选择上方路径手动复制。")); }
+        }}>{copiedId === file.id ? t("已复制") : t("复制路径")}</button>
+      </div>)}
     </article>)}
+    {files.length === 0 && completed.length > 0 ? <p className="sand-work-deliverables__note">{t("该任务还没有交付文件。")}</p> : null}
     {copyError ? <p role="alert">{t(copyError)}</p> : null}
   </div>;
 }

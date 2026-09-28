@@ -26,9 +26,10 @@ test("inspector reserves usable task and member areas and restores preferred dim
   assert.ok(bounds.maxHeight >= bounds.minHeight);
 });
 
-test("work title removes only the redundant leading Work Bar label", () => {
+test("work title removes only the redundant leading NunuBar label", () => {
+  assert.equal(workDisplayTitle("NunuBar · Design review"), "Design review");
   assert.equal(workDisplayTitle("Work Bar · Design review"), "Design review");
   assert.equal(workDisplayTitle("WorkBar: Design review"), "Design review");
-  assert.equal(workDisplayTitle("Build the Work Bar"), "Build the Work Bar");
-  assert.equal(workDisplayTitle("Work Bar"), "Work Bar");
+  assert.equal(workDisplayTitle("Build the NunuBar"), "Build the NunuBar");
+  assert.equal(workDisplayTitle("NunuBar"), "NunuBar");
 });

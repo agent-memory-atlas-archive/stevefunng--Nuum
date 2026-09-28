@@ -1,6 +1,6 @@
 import { t } from "../i18n";
 import type { AgentView, ViewBlock } from "@nuum/protocol";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { Fragment, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SandIcon, SandIconButton } from "../kit/sand-kit-primitives";
@@ -17,7 +17,9 @@ export interface PendingTool {
 
 export interface ConversationWorkspaceProps {
   agent: AgentView | null;
+  agents?: readonly AgentView[];
   blocks: readonly ViewBlock[];
+  blockTimestamps?: Readonly<Record<string, number>>;
   autoFocusInput?: boolean;
   creatingAgent?: boolean;
   canCancelCreate?: boolean;
@@ -38,6 +40,7 @@ export interface ConversationWorkspaceProps {
   onApprove(resolution: "always" | "once" | "deny" | "never"): void;
   /** 回答提问卡片：选项值原样成为一条用户消息并唤醒对方。 */
   onAnswerWidget?(messageId: string, value: string): void;
+  onOpenProfile?(): void;
   notice?: string | null;
 }
 
@@ -219,32 +222,107 @@ function NoticeBlock({ block }: { block: Extract<ViewBlock, { type: "notice" }> 
       <div className="sand-transcript-notice" data-kind={block.kind}>
         {block.kind === "profile" ? (() => {
           const renamed = /^This agent changed name to "(.*)"\.$/.exec(block.text);
-          return renamed ? t('This Nu-nu changed name to "{name}".', { name: renamed[1] }) : t("This Nu-nu changed its profile.");
+          return renamed ? t('This Nunu changed name to "{name}".', { name: renamed[1] }) : t("This Nunu changed its profile.");
         })() : t(block.text)}
       </div>
     </article>
   );
 }
 
-function PeerBlock({ block }: { block: Extract<ViewBlock, { type: "peer" }> }) {
+const TIME_GROUP_GAP = 5 * 60 * 1000;
+
+function formatTranscriptTime(timestamp: number): string {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const time = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }).format(date);
+  const day = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+  if (day === today) return t("Today {time}", { time });
+  if (day === today - 86_400_000) return t("Yesterday {time}", { time });
+  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(date);
+}
+
+function showTimeBefore(ids: readonly string[], index: number, timestamps: Readonly<Record<string, number>>): number | null {
+  const timestamp = timestamps[ids[index] ?? ""];
+  if (typeof timestamp !== "number" || !Number.isFinite(timestamp)) return null;
+  if (index === 0) return timestamp;
+  const previous = timestamps[ids[index - 1] ?? ""];
+  if (typeof previous !== "number" || !Number.isFinite(previous) || timestamp - previous >= TIME_GROUP_GAP || new Date(timestamp).toDateString() !== new Date(previous).toDateString()) return timestamp;
+  return null;
+}
+
+function TranscriptTimeSeparator({ timestamp }: { timestamp: number }) {
+  return <div className="sand-transcript-time-separator" role="separator">{formatTranscriptTime(timestamp)}</div>;
+}
+
+function PeerBlock({ block, peer, onOpen }: {
+  block: Extract<ViewBlock, { type: "peer" }>;
+  peer: AgentView | null;
+  onOpen(): void;
+}) {
   const outbound = block.direction === "outbound";
+  const peerName = peer?.profile.name ?? block.agentName;
   return (
     <article className="sand-transcript-row sand-transcript-row--peer" data-direction={block.direction}>
-      <div className="sand-peer-message">
-        <div className="sand-peer-message__meta">
-          <AgentAvatar
-            agentId={block.agentId}
-            size={22}
-            state={outbound ? "sending" : "receiving"}
-          />
-          <span>{outbound ? t("To") : t("From")} {block.agentName}</span>
-          {block.priority ? <span className="sand-peer-message__priority">{t("Priority")}</span> : null}
-        </div>
-        <div className={`sand-message ${outbound ? "sand-message--peer-outbound" : "sand-message--assistant"}`}>
-          <div className="sand-message-prose"><p>{block.text}</p></div>
-        </div>
-      </div>
+      <button className="sand-peer-summary" onClick={onOpen} type="button">
+        <span>{outbound ? t("Sent a message to") : t("Message from")}</span>
+        <AgentAvatar agentId={block.agentId} color={peer?.profile.avatarColor} shape={peer?.profile.avatarShape} material={peer?.profile.avatarMaterial} size={20} state={outbound ? "sending" : "receiving"} />
+        <strong>{peerName}</strong>
+        {block.priority ? <span className="sand-peer-message__priority">{t("Priority")}</span> : null}
+        <SandIcon name="chevron-right" size={12} />
+      </button>
     </article>
+  );
+}
+
+function PeerConversation({ agent, peer, blocks, timestamps, onClose }: {
+  agent: AgentView;
+  peer: AgentView | null;
+  blocks: readonly Extract<ViewBlock, { type: "peer" }>[];
+  timestamps: Readonly<Record<string, number>>;
+  onClose(): void;
+}) {
+  const peerId = blocks[0]?.agentId ?? peer?.profile.id ?? "peer";
+  const peerName = peer?.profile.name ?? blocks[0]?.agentName ?? t("Agent");
+  const blockIds = blocks.map((block) => block.id);
+  const timeline = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (timeline.current) timeline.current.scrollTop = timeline.current.scrollHeight;
+  }, [blocks.length]);
+  return (
+    <div className="sand-peer-sheet" role="dialog" aria-modal="true" aria-label={t("Conversation between {first} and {second}", { first: agent.profile.name, second: peerName })} onClick={onClose}>
+      <div className="sand-peer-sheet__surface" onClick={(event) => event.stopPropagation()}>
+        <header>
+          <div className="sand-peer-sheet__pair">
+            <AgentAvatar agentId={agent.profile.id} color={agent.profile.avatarColor} shape={agent.profile.avatarShape} material={agent.profile.avatarMaterial} size={30} />
+            <strong>{agent.profile.name}</strong>
+            <span aria-hidden="true">⇄</span>
+            <AgentAvatar agentId={peerId} color={peer?.profile.avatarColor} shape={peer?.profile.avatarShape} material={peer?.profile.avatarMaterial} size={30} />
+            <strong>{peerName}</strong>
+          </div>
+        </header>
+        <div className="sand-peer-sheet__timeline" ref={timeline} role="log">
+          {blocks.map((block, index) => {
+            const outbound = block.direction === "outbound";
+            const speaker = outbound ? agent : peer;
+            const speakerId = outbound ? agent.profile.id : peerId;
+            const speakerName = outbound ? agent.profile.name : peerName;
+            const timestamp = showTimeBefore(blockIds, index, timestamps);
+            return <Fragment key={block.id}>
+              {timestamp == null ? null : <TranscriptTimeSeparator timestamp={timestamp} />}
+              <article className="sand-peer-turn">
+                <AgentAvatar agentId={speakerId} color={speaker?.profile.avatarColor} shape={speaker?.profile.avatarShape} material={speaker?.profile.avatarMaterial} size={28} />
+                <div>
+                  <span>{speakerName}</span>
+                  <div className="sand-message sand-message--assistant"><div className="sand-message-prose"><p>{block.text}</p></div></div>
+                </div>
+              </article>
+            </Fragment>;
+          })}
+        </div>
+        <footer><button onClick={onClose} type="button">{t("Close chat")}</button></footer>
+      </div>
+    </div>
   );
 }
 
@@ -346,7 +424,9 @@ function AgentCreation({
 
 export function ConversationWorkspace({
   agent,
+  agents = [],
   blocks,
+  blockTimestamps = {},
   autoFocusInput = false,
   creatingAgent = false,
   canCancelCreate = false,
@@ -360,6 +440,7 @@ export function ConversationWorkspace({
   onCreateAgent,
   onApprove,
   onAnswerWidget,
+  onOpenProfile,
   notice
 }: ConversationWorkspaceProps) {
   const empty = agent == null || blocks.length === 0;
@@ -373,6 +454,14 @@ export function ConversationWorkspace({
   const transcriptRef = useRef<HTMLDivElement>(null);
   const promptRef = useRef<HTMLTextAreaElement>(null);
   const composingRef = useRef(false);
+  const [peerSheetAgentId, setPeerSheetAgentId] = useState<string | null>(null);
+  const peerBlocks = peerSheetAgentId == null ? [] : blocks.filter(
+    (block): block is Extract<ViewBlock, { type: "peer" }> => block.type === "peer" && block.agentId === peerSheetAgentId
+  );
+  const peerAgent = agents.find((item) => item.profile.id === peerSheetAgentId) ?? null;
+  const blockIds = blocks.map((block) => block.id);
+
+  useEffect(() => setPeerSheetAgentId(null), [agent?.profile.id]);
 
   useEffect(() => {
     const field = promptRef.current;
@@ -396,7 +485,7 @@ export function ConversationWorkspace({
     <section className="sand-chat-stage">
       <header className="sand-chat-header">
         {agent ? (
-          <div className="sand-chat-header__identity">
+          <button className="sand-chat-header__identity" disabled={!onOpenProfile} onClick={onOpenProfile} type="button" aria-label={t("Open {name} profile", { name: agent.profile.name })}>
             <span className="sand-chat-header__avatar">
               <AgentAvatar
                 agentId={agent.profile.id}
@@ -409,7 +498,7 @@ export function ConversationWorkspace({
             </span>
             <span id="sand-conversation-heading">{agent.profile.name}</span>
             {agent.runtime.status === "running" ? <small>{t("Working")}</small> : null}
-          </div>
+          </button>
         ) : (
           <div className="sand-chat-header__identity sand-chat-header__identity--blank" />
         )}
@@ -424,9 +513,12 @@ export function ConversationWorkspace({
             <span>{t("Ask anything, or drop a file.")}</span>
           </div>
         ) : null}
-        {blocks.map((block) =>
-          block.type === "user" ? (
-            <article className="sand-transcript-row" key={block.id}>
+        {blocks.map((block, index) => {
+          const timestamp = showTimeBefore(blockIds, index, blockTimestamps);
+          return <Fragment key={block.id}>
+          {timestamp == null ? null : <TranscriptTimeSeparator timestamp={timestamp} />}
+          {block.type === "user" ? (
+            <article className="sand-transcript-row">
               <div className="sand-message sand-message--user">
                 <div className="sand-message-prose">
                   <p>{block.text}</p>
@@ -437,17 +529,17 @@ export function ConversationWorkspace({
             <MessageBlock
               answered={widgetAnswers.get(block.id) ?? null}
               block={block}
-              key={block.id}
               onAnswer={onAnswerWidget ? (value) => onAnswerWidget(block.id, value) : undefined}
             />
           ) : block.type === "notice" ? (
-            <NoticeBlock block={block} key={block.id} />
+            <NoticeBlock block={block} />
           ) : block.type === "peer" ? (
-            <PeerBlock block={block} key={block.id} />
+            <PeerBlock block={block} peer={agents.find((item) => item.profile.id === block.agentId) ?? null} onOpen={() => setPeerSheetAgentId(block.agentId)} />
           ) : (
-            <AssistantBlock block={block} key={block.id} />
-          )
-        )}
+            <AssistantBlock block={block} />
+          )}
+          </Fragment>;
+        })}
       </div>
       <div className="sand-chat-input-dock">
         {agent && agent.runtime.status === "running" ? (
@@ -527,6 +619,9 @@ export function ConversationWorkspace({
           </div>
         </form>
       </div>
+      {agent && peerSheetAgentId && peerBlocks.length ? (
+        <PeerConversation agent={agent} peer={peerAgent} blocks={peerBlocks} timestamps={blockTimestamps} onClose={() => setPeerSheetAgentId(null)} />
+      ) : null}
       </>}
     </section>
   );

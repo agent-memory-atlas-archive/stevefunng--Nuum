@@ -82,6 +82,19 @@ function applyPanePatch(
   return { ...current, [id]: { ...previous, ...next } };
 }
 
+function transcriptTimestamps(events: readonly TranscriptEvent[]): Readonly<Record<string, number>> {
+  const timestamps: Record<string, number> = {};
+  for (const event of events) {
+    timestamps[event.id] = event.createdAt;
+    if (event.type === "assistant") {
+      for (const part of event.parts) {
+        if (part.type === "tool_call") timestamps[part.id] = event.createdAt;
+      }
+    }
+  }
+  return timestamps;
+}
+
 export function App() {
   const language = useLanguage();
   const [languageSaving, setLanguageSaving] = useState(false);
@@ -125,12 +138,14 @@ export function App() {
   const pane = (activeId ? panes[activeId] : undefined) ?? emptyPane;
   const draft = activeId ? pane.draft : "";
   const blocks = projectAgent(pane.events, pane.live).blocks;
+  const blockTimestamps = transcriptTimestamps(pane.events);
   const floatingAgent = useMemo(
     () => agents.find((agent) => agent.profile.id === floatingAgentId) ?? null,
     [agents, floatingAgentId]
   );
   const floatingPane = (floatingAgentId ? panes[floatingAgentId] : undefined) ?? emptyPane;
   const floatingBlocks = projectAgent(floatingPane.events, floatingPane.live).blocks;
+  const floatingBlockTimestamps = transcriptTimestamps(floatingPane.events);
 
   function patchPane(id: string, patch: Partial<AgentPane> | ((current: AgentPane) => Partial<AgentPane>)): void {
     setPanes((current) => applyPanePatch(current, id, patch));
@@ -611,7 +626,9 @@ export function App() {
         ) : (
           <ConversationWorkspace
             agent={active}
+            agents={agents}
             blocks={blocks}
+            blockTimestamps={blockTimestamps}
             creatingAgent={creatingAgent}
             canCancelCreate={agents.length > 0}
             creationError={creationError}
@@ -627,6 +644,7 @@ export function App() {
             onCreateAgent={(profile) => void createAgent(profile)}
             onApprove={(resolution) => void approve(resolution)}
             onAnswerWidget={answerWidget}
+            onOpenProfile={() => active && setProfileEditorId((current) => current === active.profile.id ? null : active.profile.id)}
           />
         )}
         {workNotice ? <div className="sand-work-notice" role="alert">{t(workNotice)}</div> : null}
@@ -635,8 +653,10 @@ export function App() {
             <button aria-label={t("Close conversation")} className="sand-work-agent-float__close" onClick={() => setFloatingAgentId(null)} type="button">×</button>
             <ConversationWorkspace
               agent={floatingAgent}
+              agents={agents}
               autoFocusInput
               blocks={floatingBlocks}
+              blockTimestamps={floatingBlockTimestamps}
               pendingTool={floatingPane.pendingTool}
               draft={floatingPane.draft}
               notice={floatingPane.notice}
@@ -765,7 +785,7 @@ export function App() {
             </div>
             </div></section>
             <section className="sand-settings-group"><h3>Proactive mode</h3><div className="sand-settings-group__surface">
-              <div className="sand-settings-row"><div className="sand-settings-copy"><span>Nu-nu</span><small>{t("Manage your proactive companion from the menu bar.")}</small></div>
+              <div className="sand-settings-row"><div className="sand-settings-copy"><span>Nunu</span><small>{t("Manage your proactive companion from the menu bar.")}</small></div>
                 <div className="sand-settings-control"><button className="sand-kit-button" type="button" onClick={() => void window.nuum.desktop.showProactive()}>{t("Open menu bar panel")}</button></div>
               </div>
             </div></section>

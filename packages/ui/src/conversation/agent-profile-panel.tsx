@@ -66,9 +66,9 @@ export function AgentProfilePanel({ profile, onSave, onClose }: {
   profile: AgentProfile; onSave(patch: AgentProfilePatch): Promise<void>; onClose(): void;
 }) {
   return <aside className="sand-agent-profile-panel" aria-label={t("Agent profile")}>
-    <header><span>{t("Edit profile")}</span><SandIconButton icon="chevron-right" label={t("Close profile")} aria-label={t("Close profile")} onClick={onClose} size="sm" /></header>
+    <header><span>{t("Nunu settings")}</span><SandIconButton icon="chevron-right" label={t("Close profile")} aria-label={t("Close profile")} onClick={onClose} size="sm" /></header>
     <div className="sand-agent-profile-panel__body">
-      <div className="sand-agent-profile-panel__avatar"><AgentAvatar agentId={profile.id} color={profile.avatarColor} shape={profile.avatarShape} size={88} /></div>
+      <div className="sand-agent-profile-panel__avatar"><AgentAvatar agentId={profile.id} color={profile.avatarColor} shape={profile.avatarShape} material={profile.avatarMaterial} size={68} /></div>
       <ProfileField label={t("Name")} value={profile.name} onSave={async (value) => {
         const name = value.trim();
         if (!name) throw new Error(t("Name cannot be empty."));

@@ -96,10 +96,8 @@ export function WorkBoard({
   const bounds = inspectorBounds(mainSize.width, mainSize.height);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [page, setPage] = useState<"tasks" | "deliverables">("tasks");
-  const [taskTitle, setTaskTitle] = useState("");
-  const [blockerReason, setBlockerReason] = useState("");
   const [dispatchInstruction, setDispatchInstruction] = useState("");
-  const [dialog, setDialog] = useState<"capabilities" | "setup" | "task" | null>(null);
+  const [dialog, setDialog] = useState<"capabilities" | "setup" | null>(null);
   const [workGoal, setWorkGoal] = useState(snapshot.profile.description);
   const [projectRoot, setProjectRoot] = useState(snapshot.profile.projectRoot ?? "");
   const selectedTask = snapshot.tasks.find((task) => task.id === selectedTaskId) ?? null;
@@ -134,15 +132,14 @@ export function WorkBoard({
               <span aria-hidden="true">/</span>
               <small>{page === "tasks" ? t("产物") : t("Tasks")}</small>
             </button>
-            {page === "tasks" ? <button className="sand-work-quiet-button" onClick={() => setDialog("task")} type="button"><SandIcon name="plus" size={12} />{" "}{t("New task")}</button> : null}
           </div>
           <div className="sand-work-pages" data-page={page}>
             <div className="sand-work-pages__rotor">
               <section className="sand-work-page sand-work-page--tasks" aria-label={t("Tasks")} inert={page !== "tasks"} aria-hidden={page !== "tasks"}>
-                <TaskLanes tasks={snapshot.tasks} agents={agents} onOpen={(id) => { setSelectedTaskId(id); setBlockerReason(""); setDispatchInstruction(""); }} />
+                <TaskLanes tasks={snapshot.tasks} agents={agents} onOpen={(id) => { setSelectedTaskId(id); setDispatchInstruction(""); }} />
               </section>
               <section className="sand-work-page sand-work-page--deliverables" aria-label={t("产物")} inert={page !== "deliverables"} aria-hidden={page !== "deliverables"}>
-                <WorkDeliverables tasks={snapshot.tasks} onOpenTask={setSelectedTaskId} />
+                <WorkDeliverables tasks={snapshot.tasks} agents={agents} onOpenTask={setSelectedTaskId} />
               </section>
             </div>
           </div>
@@ -184,68 +181,53 @@ export function WorkBoard({
                 </div>
               ))}
             </div>
-            <div className="sand-work-member-drop-hint"><SandIcon name="sidebar" size={18} /><strong className="sand-work-drop-idle">{t("Drag an Agent here")}</strong><strong className="sand-work-drop-active">{t("Release to add Agent")}</strong><strong className="sand-work-drop-out">{t("Drop outside to remove")}</strong><span>{t("From the sidebar. Drag out to remove.")}</span></div>
+            <div className="sand-work-member-drop-hint"><SandIcon name="nunu-plus" size={30} /><strong className="sand-work-drop-idle">{t("拖到此处以添加Nunu到当前NunuBar")}</strong><strong className="sand-work-drop-active">{t("Release to add Agent")}</strong><strong className="sand-work-drop-out">{t("Drop outside to remove")}</strong></div>
           </section>
         </aside>
       </div>
       {selectedTask ? <WorkDialog title={selectedTask.title} subtitle={t(STATE_LABELS[selectedTask.state])} onClose={() => setSelectedTaskId(null)}>
         <div className="sand-work-task-detail">
-          <div className="sand-work-task-meta"><span>{t("Assigned to")}</span><strong>{selectedTask.assigneeIds.length ? selectedTask.assigneeIds.map((id) => agents.find((agent) => agent.profile.id === id)?.profile.name ?? t("Agent")).join(", ") : t("Unassigned")}</strong><span>{t("Priority")}</span><strong>{t({ low: "Low", normal: "Normal", high: "High", urgent: "Urgent" }[selectedTask.priority])}</strong></div>
-          {selectedTask.description ? <p>{selectedTask.description}</p> : null}
+          {selectedTask.description ? <div className="sand-work-task-detail__summary">{selectedTask.description}</div> : null}
+          <div className="sand-work-task-people">
+            <span>{t("Assigned to")}</span>
+            <div className="sand-work-task-people__list">
+              {selectedTask.assigneeIds.length ? selectedTask.assigneeIds.map((id) => {
+                const agent = agents.find((item) => item.profile.id === id);
+                return agent ? (
+                  <span className="sand-work-task-person" key={id}>
+                    <AgentAvatar agentId={id} color={agent.profile.avatarColor} shape={agent.profile.avatarShape} size={24} state={agent.runtime.status === "running" ? "working" : "idle"} />
+                    <strong>{agent.profile.name}</strong>
+                  </span>
+                ) : null;
+              }) : <strong>{t("Unassigned")}</strong>}
+            </div>
+          </div>
+          <div className="sand-work-task-meta"><span>{t("Priority")}</span><strong>{t({ low: "Low", normal: "Normal", high: "High", urgent: "Urgent" }[selectedTask.priority])}</strong></div>
           {selectedTask.acceptanceCriteria.length ? <section><h3>{t("Acceptance criteria")}</h3><ul>{selectedTask.acceptanceCriteria.map((item, index) => <li key={index}>{item}</li>)}</ul></section> : null}
           {selectedTask.blocker ? <p className="sand-work-task-detail__blocker">{t("Blocked:")}{" "}{selectedTask.blocker.reason}</p> : null}
           {selectedTask.deliverables.length ? <section><h3>{t("产物")}</h3>{selectedTask.deliverables.map((file) => <div className="sand-work-task-file" key={file.id}><strong>{file.name}</strong><span>{file.uri}</span></div>)}</section> : null}
-                <div className="sand-work-task-detail__actions">
-                  {selectedTask.state === "in_progress" && selectedTask.assigneeIds[0] ? (
-                    <div className="sand-work-task-dispatch">
-                      <input
-                        onChange={(event) => setDispatchInstruction(event.target.value)}
-                        placeholder={t("Instruction for the Agent")}
-                        value={dispatchInstruction}
-                      />
-                      <button
-                        disabled={!dispatchInstruction.trim()}
-                        onClick={() => {
-                          onDispatchTask(selectedTask.assigneeIds[0]!, selectedTask.id, dispatchInstruction.trim());
-                          setDispatchInstruction("");
-                        }}
-                        type="button"
-                      >{t("Run")}</button>
-                    </div>
-                  ) : null}
-                  {selectedTask.allowedTransitions.includes("blocked") ? (
-                    <input onChange={(event) => setBlockerReason(event.target.value)} placeholder={t("Blocker reason")} value={blockerReason} />
-                  ) : null}
-                  {selectedTask.allowedTransitions.map((state) => (
-                    <button
-                      disabled={state === "blocked" && !blockerReason.trim()}
-                      key={state}
-                      onClick={() => {
-                        onTransitionTask(selectedTask.id, state, selectedTask.revision, state === "blocked" ? blockerReason.trim() : undefined);
-                        if (state === "blocked") setBlockerReason("");
-                      }}
-                      type="button"
-                    >
-                      {t(STATE_LABELS[state])}
-                    </button>
-                  ))}
-                </div>
+          {selectedTask.state === "in_progress" && selectedTask.assigneeIds[0] ? (
+            <div className="sand-work-task-detail__actions">
+              <div className="sand-work-task-dispatch">
+                <input
+                  onChange={(event) => setDispatchInstruction(event.target.value)}
+                  placeholder={t("Instruction for the Agent")}
+                  value={dispatchInstruction}
+                />
+                <button
+                  disabled={!dispatchInstruction.trim()}
+                  onClick={() => {
+                    onDispatchTask(selectedTask.assigneeIds[0]!, selectedTask.id, dispatchInstruction.trim());
+                    setDispatchInstruction("");
+                  }}
+                  type="button"
+                >{t("Run")}</button>
+              </div>
+            </div>
+          ) : null}
         </div>
       </WorkDialog> : null}
       {dialog === "capabilities" ? <WorkCapabilityDialog onClose={() => setDialog(null)} onAdd={onAddCatalogEntry} onPickDirectory={onPickDirectory} /> : null}
-      {dialog === "task" ? <WorkDialog title={t("A new task")} subtitle={t("Give the team a clear next step.")} onClose={() => setDialog(null)}>
-        <form
-                className="sand-work-task-create"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  if (!taskTitle.trim()) return;
-                  onCreateTask({ title: taskTitle.trim(), assigneeIds: [] });
-                  setTaskTitle(""); setDialog(null);
-                }}
-              >
-                <input onChange={(event) => setTaskTitle(event.target.value)} aria-label={t("Task title")} data-autofocus autoFocus placeholder={t("What needs to happen?")} value={taskTitle} />
-                <button className="sand-work-primary" disabled={!taskTitle.trim()} type="submit">{t("Create task")}</button>
-              </form></WorkDialog> : null}
       {dialog === "setup" ? <WorkDialog title={t("Work settings")} subtitle={t("A shared goal and a place to work.")} onClose={() => setDialog(null)}>
         <form className="sand-work-dialog-form" onSubmit={(event) => { event.preventDefault(); onUpdateWork({ description: workGoal.trim(), projectRoot: projectRoot.trim() || null }); setDialog(null); }}>
           <label>{t("Goal")}<AutoTextarea value={workGoal} onChange={(event) => setWorkGoal(event.target.value)} /></label>

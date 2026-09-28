@@ -28,8 +28,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Saved"
   },
   "Agent profile": {
-    "zh-CN": "Nu-nu 资料",
-    "en": "Nu-nu profile"
+    "zh-CN": "Nunu 资料",
+    "en": "Nunu profile"
   },
   "Edit profile": {
     "zh-CN": "编辑资料",
@@ -38,6 +38,42 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
   "Close profile": {
     "zh-CN": "收起资料栏",
     "en": "Close profile"
+  },
+  "Nunu settings": {
+    "zh-CN": "设置",
+    "en": "Settings"
+  },
+  "Open {name} profile": {
+    "zh-CN": "打开 {name} 的资料",
+    "en": "Open {name} profile"
+  },
+  "Sent a message to": {
+    "zh-CN": "已发消息给",
+    "en": "Sent a message to"
+  },
+  "Message from": {
+    "zh-CN": "消息来自",
+    "en": "Message from"
+  },
+  "Conversation between {first} and {second}": {
+    "zh-CN": "{first} 与 {second} 的对话",
+    "en": "Conversation between {first} and {second}"
+  },
+  "Close agent conversation": {
+    "zh-CN": "关闭 Nunu 对话",
+    "en": "Close Nunu conversation"
+  },
+  "Close chat": {
+    "zh-CN": "关闭聊天",
+    "en": "Close chat"
+  },
+  "Today {time}": {
+    "zh-CN": "今天 {time}",
+    "en": "Today {time}"
+  },
+  "Yesterday {time}": {
+    "zh-CN": "昨天 {time}",
+    "en": "Yesterday {time}"
   },
   "Name": {
     "zh-CN": "名称",
@@ -60,20 +96,20 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Description"
   },
   "What should this Agent do?": {
-    "zh-CN": "这个 Nu-nu 负责什么？",
-    "en": "What should this Nu-nu do?"
+    "zh-CN": "这个 Nunu 负责什么？",
+    "en": "What should this Nunu do?"
   },
   "Sidebar actions": {
     "zh-CN": "侧栏操作",
     "en": "Sidebar actions"
   },
-  "Create new Nu-nu": {
-    "zh-CN": "创建新 Nu-nu",
-    "en": "Create new Nu-nu"
+  "Create new Nunu": {
+    "zh-CN": "创建新 Nunu",
+    "en": "Create new Nunu"
   },
-  "Create work bar": {
-    "zh-CN": "创建 work bar",
-    "en": "Create work bar"
+  "Create NunuBar": {
+    "zh-CN": "创建 NunuBar",
+    "en": "Create NunuBar"
   },
   "Shuffle": {
     "zh-CN": "换一个",
@@ -127,25 +163,21 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "zh-CN": "置顶",
     "en": "Pin"
   },
-  "Move to group…": {
-    "zh-CN": "移至分组…",
-    "en": "Move to group…"
+  "Move to group": {
+    "zh-CN": "移至分组",
+    "en": "Move to group"
   },
-  "Move to new group…": {
-    "zh-CN": "移至新分组…",
-    "en": "Move to new group…"
-  },
-  "Edit profile…": {
-    "zh-CN": "编辑资料…",
-    "en": "Edit profile…"
+  "Move to new group": {
+    "zh-CN": "移至新分组",
+    "en": "Move to new group"
   },
   "Copy Agent ID": {
-    "zh-CN": "复制 Nu-nu ID",
-    "en": "Copy Nu-nu ID"
+    "zh-CN": "复制 Nunu ID",
+    "en": "Copy Nunu ID"
   },
   "Could not copy Agent ID.": {
-    "zh-CN": "无法复制 Nu-nu ID。",
-    "en": "Could not copy Nu-nu ID."
+    "zh-CN": "无法复制 Nunu ID。",
+    "en": "Could not copy Nunu ID."
   },
   "Rename group…": {
     "zh-CN": "重命名分组…",
@@ -161,31 +193,31 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
   },
   "Ungroup agents": {
     "zh-CN": "解散分组",
-    "en": "Ungroup Nu-nu"
+    "en": "Ungroup Nunu"
   },
   "New Agent": {
-    "zh-CN": "新 Nu-nu",
-    "en": "New Nu-nu"
+    "zh-CN": "新 Nunu",
+    "en": "New Nunu"
   },
   "Working": {
     "zh-CN": "工作中",
     "en": "Working"
   },
   "Agents": {
-    "zh-CN": "Nu-nu",
-    "en": "Nu-nu"
+    "zh-CN": "Nunu",
+    "en": "Nunu"
   },
   "Agent": {
-    "zh-CN": "Nu-nu",
-    "en": "Nu-nu"
+    "zh-CN": "Nunu",
+    "en": "Nunu"
   },
   "New": {
     "zh-CN": "新建",
     "en": "New"
   },
   "New agent": {
-    "zh-CN": "新建 Nu-nu",
-    "en": "New Nu-nu"
+    "zh-CN": "新建 Nunu",
+    "en": "New Nunu"
   },
   "Search": {
     "zh-CN": "搜索",
@@ -196,32 +228,32 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Drop here to pin"
   },
   "Agent list": {
-    "zh-CN": "Nu-nu 列表",
-    "en": "Nu-nu list"
+    "zh-CN": "Nunu 列表",
+    "en": "Nunu list"
   },
   "Pinned Agents": {
-    "zh-CN": "置顶 Nu-nu",
-    "en": "Pinned Nu-nu"
+    "zh-CN": "置顶 Nunu",
+    "en": "Pinned Nunu"
   },
   "Drag an Agent here": {
-    "zh-CN": "将 Nu-nu 拖到此处",
-    "en": "Drag a Nu-nu here"
+    "zh-CN": "将 Nunu 拖到此处",
+    "en": "Drag a Nunu here"
   },
   "No agents yet": {
-    "zh-CN": "还没有 Nu-nu",
-    "en": "No Nu-nu yet"
+    "zh-CN": "还没有 Nunu",
+    "en": "No Nunu yet"
   },
   "No matching agents": {
-    "zh-CN": "未找到匹配的 Nu-nu",
-    "en": "No matching Nu-nu"
+    "zh-CN": "未找到匹配的 Nunu",
+    "en": "No matching Nunu"
   },
-  "Work Bar": {
-    "zh-CN": "work bar",
-    "en": "work bar"
+  "NunuBar": {
+    "zh-CN": "NunuBar",
+    "en": "NunuBar"
   },
   "New Work": {
-    "zh-CN": "新建 work bar",
-    "en": "New work bar"
+    "zh-CN": "新建 NunuBar",
+    "en": "New NunuBar"
   },
   "Settings": {
     "zh-CN": "设置",
@@ -320,8 +352,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "A teammate with its own context"
   },
   "Create an Agent": {
-    "zh-CN": "创建 Nu-nu",
-    "en": "Create a Nu-nu"
+    "zh-CN": "创建 Nunu",
+    "en": "Create a Nunu"
   },
   "Give it an ongoing job. It gets its own conversation, memory, and workspace.": {
     "zh-CN": "为它安排一项持续的工作。它会拥有独立的对话、记忆和工作目录。",
@@ -332,8 +364,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "e.g. Release scout"
   },
   "A standing role helps other Agents know when to message it.": {
-    "zh-CN": "明确的职责能让其他 Nu-nu 知道何时联系它。",
-    "en": "A standing role helps other Nu-nu know when to message it."
+    "zh-CN": "明确的职责能让其他 Nunu 知道何时联系它。",
+    "en": "A standing role helps other Nunu know when to message it."
   },
   "Character": {
     "zh-CN": "形象",
@@ -352,8 +384,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Or start with a role"
   },
   "Create Agent": {
-    "zh-CN": "创建 Nu-nu",
-    "en": "Create Nu-nu"
+    "zh-CN": "创建 Nunu",
+    "en": "Create Nunu"
   },
   "Conversation transcript": {
     "zh-CN": "聊天记录",
@@ -416,12 +448,12 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "A place for the job, not another chat"
   },
   "Create a Work": {
-    "zh-CN": "创建 work bar",
-    "en": "Create a work bar"
+    "zh-CN": "创建 NunuBar",
+    "en": "Create a NunuBar"
   },
   "Keep tasks, shared discussion, Agents, capabilities, and deliverables together.": {
-    "zh-CN": "汇集任务、团队讨论、Nu-nu、能力和产物。",
-    "en": "Keep tasks, shared discussion, Nu-nu, capabilities, and deliverables together."
+    "zh-CN": "汇集任务、团队讨论、Nunu、能力和产物。",
+    "en": "Keep tasks, shared discussion, Nunu, capabilities, and deliverables together."
   },
   "e.g. Product launch": {
     "zh-CN": "例如：产品发布",
@@ -432,20 +464,20 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Goal"
   },
   "What should this Work accomplish?": {
-    "zh-CN": "这个 work bar 要完成什么？",
-    "en": "What should this work bar accomplish?"
+    "zh-CN": "这个 NunuBar 要完成什么？",
+    "en": "What should this NunuBar accomplish?"
   },
   "Create Work": {
-    "zh-CN": "创建 work bar",
-    "en": "Create work bar"
+    "zh-CN": "创建 NunuBar",
+    "en": "Create NunuBar"
   },
   "active": {
     "zh-CN": "工作中",
     "en": "active"
   },
   "Work settings": {
-    "zh-CN": "work bar 设置",
-    "en": "work bar settings"
+    "zh-CN": "NunuBar 设置",
+    "en": "NunuBar settings"
   },
   "切换到产物": {
     "zh-CN": "切换到产物",
@@ -468,8 +500,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "New task"
   },
   "Resize Work inspector": {
-    "zh-CN": "调整 work bar 信息栏宽度",
-    "en": "Resize work bar inspector"
+    "zh-CN": "调整 NunuBar 信息栏宽度",
+    "en": "Resize NunuBar inspector"
   },
   "Capabilities": {
     "zh-CN": "能力",
@@ -484,20 +516,20 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Local tool"
   },
   "Resize capabilities and agents": {
-    "zh-CN": "调整能力与 Nu-nu 区域",
-    "en": "Resize capabilities and Nu-nu"
+    "zh-CN": "调整能力与 Nunu 区域",
+    "en": "Resize capabilities and Nunu"
   },
   "Release to add Agent": {
-    "zh-CN": "松开以添加 Nu-nu",
-    "en": "Release to add Nu-nu"
+    "zh-CN": "松开以添加 Nunu",
+    "en": "Release to add Nunu"
   },
   "Drop outside to remove": {
     "zh-CN": "拖出此区域即可移除",
     "en": "Drop outside to remove"
   },
-  "From the sidebar. Drag out to remove.": {
-    "zh-CN": "从侧栏拖入，拖出即可移除。",
-    "en": "From the sidebar. Drag out to remove."
+  "拖到此处以添加Nunu到当前NunuBar": {
+    "zh-CN": "拖到此处以添加Nunu到当前NunuBar",
+    "en": "Drop here to add the Nunu to this NunuBar"
   },
   "Assigned to": {
     "zh-CN": "负责人",
@@ -512,8 +544,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Blocked:"
   },
   "Instruction for the Agent": {
-    "zh-CN": "给 Nu-nu 的指令",
-    "en": "Instruction for the Nu-nu"
+    "zh-CN": "给 Nunu 的指令",
+    "en": "Instruction for the Nunu"
   },
   "Run": {
     "zh-CN": "开始执行",
@@ -584,12 +616,12 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "You"
   },
   "Message the Work": {
-    "zh-CN": "给 work bar 发消息",
-    "en": "Message the work bar"
+    "zh-CN": "给 NunuBar 发消息",
+    "en": "Message the NunuBar"
   },
   "Message the Work…": {
-    "zh-CN": "给 work bar 发消息…",
-    "en": "Message the work bar…"
+    "zh-CN": "给 NunuBar 发消息…",
+    "en": "Message the NunuBar…"
   },
   "Post message": {
     "zh-CN": "发送消息",
@@ -608,7 +640,7 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "In progress"
   },
   "Blocked": {
-    "zh-CN": "已阻塞",
+    "zh-CN": "阻塞中",
     "en": "Blocked"
   },
   "Review": {
@@ -639,9 +671,13 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "zh-CN": "暂无产物",
     "en": "No deliverables yet"
   },
+  "该任务还没有交付文件。": {
+    "zh-CN": "该任务还没有交付文件。",
+    "en": "This task has no delivered files yet."
+  },
   "Agent 团队交付的文件会汇集在这里。": {
-    "zh-CN": "Nu-nu 团队交付的文件会汇集在这里。",
-    "en": "Files delivered by the Nu-nu team will appear here."
+    "zh-CN": "Nunu 团队交付的文件会汇集在这里。",
+    "en": "Files delivered by the Nunu team will appear here."
   },
   "File": {
     "zh-CN": "文件",
@@ -680,8 +716,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Local tools"
   },
   "Skills, tools and knowledge for this Work.": {
-    "zh-CN": "为这个 work bar 配置技能、工具和知识。",
-    "en": "Skills, tools and knowledge for this work bar."
+    "zh-CN": "为这个 NunuBar 配置技能、工具和知识。",
+    "en": "Skills, tools and knowledge for this NunuBar."
   },
   "Capability source": {
     "zh-CN": "能力来源",
@@ -792,16 +828,16 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "e.g. status, diff, log"
   },
   "Agents can read this folder. The source files stay in place.": {
-    "zh-CN": "Nu-nu 可以读取此目录，源文件仍保留在原处。",
-    "en": "Nu-nu can read this folder. The source files stay in place."
+    "zh-CN": "Nunu 可以读取此目录，源文件仍保留在原处。",
+    "en": "Nunu can read this folder. The source files stay in place."
   },
   "Choose the folder containing SKILL.md, or enter its full path.": {
     "zh-CN": "选择包含 SKILL.md 的目录，或输入完整路径。",
     "en": "Choose the folder containing SKILL.md, or enter its full path."
   },
   "Use an installed executable. List the subcommands this Work can use.": {
-    "zh-CN": "使用已安装的可执行文件，并列出此 work bar 允许使用的子命令。",
-    "en": "Use an installed executable. List the subcommands this work bar can use."
+    "zh-CN": "使用已安装的可执行文件，并列出此 NunuBar 允许使用的子命令。",
+    "en": "Use an installed executable. List the subcommands this NunuBar can use."
   },
   "Add tools already registered in Nuum.": {
     "zh-CN": "添加已在 Nuum 注册的工具。",
@@ -812,8 +848,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Importing…"
   },
   "Add to Work": {
-    "zh-CN": "添加到 work bar",
-    "en": "Add to work bar"
+    "zh-CN": "添加到 NunuBar",
+    "en": "Add to NunuBar"
   },
   "Host error": {
     "zh-CN": "服务出现错误",
@@ -836,16 +872,16 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Keep the current dark shell, or switch to the light palette."
   },
   "Active agent project": {
-    "zh-CN": "当前 Nu-nu 的项目目录",
-    "en": "Active Nu-nu project"
+    "zh-CN": "当前 Nunu 的项目目录",
+    "en": "Active Nunu project"
   },
   "Pre-approved read/write scope and default working directory for this agent.": {
-    "zh-CN": "此 Nu-nu 默认使用的工作目录，也是预先允许读写的范围。",
-    "en": "Pre-approved read/write scope and default working directory for this Nu-nu."
+    "zh-CN": "此 Nunu 默认使用的工作目录，也是预先允许读写的范围。",
+    "en": "Pre-approved read/write scope and default working directory for this Nunu."
   },
   "Active agent permission": {
-    "zh-CN": "当前 Nu-nu 的权限",
-    "en": "Active Nu-nu permission"
+    "zh-CN": "当前 Nunu 的权限",
+    "en": "Active Nunu permission"
   },
   "Override the global default for local file and command actions.": {
     "zh-CN": "单独设置本地文件和命令操作的权限。",
@@ -868,16 +904,16 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Default local-tool permission"
   },
   "Used by agents that follow the global setting. Hard safety blocks always remain.": {
-    "zh-CN": "供跟随全局设置的 Nu-nu 使用，安全限制始终有效。",
-    "en": "Used by Nu-nu that follow the global setting. Hard safety blocks always remain."
+    "zh-CN": "供跟随全局设置的 Nunu 使用，安全限制始终有效。",
+    "en": "Used by Nunu that follow the global setting. Hard safety blocks always remain."
   },
   "Default provider": {
     "zh-CN": "默认模型服务商",
     "en": "Default provider"
   },
   "Used for new chats until you change the session model.": {
-    "zh-CN": "新建 Nu-nu 默认使用此服务商。",
-    "en": "Used by new Nu-nu until their model is changed."
+    "zh-CN": "新建 Nunu 默认使用此服务商。",
+    "en": "Used by new Nunu until their model is changed."
   },
   "DeepSeek model": {
     "zh-CN": "DeepSeek 模型",
@@ -1071,13 +1107,13 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "zh-CN": "较早的消息已整理为摘要，原始记录仍保存在本机。",
     "en": "Earlier messages were summarized to fit the context window. The originals are still on disk."
   },
-  "This Nu-nu changed its profile.": {
-    "zh-CN": "此 Nu-nu 已更新资料。",
-    "en": "This Nu-nu changed its profile."
+  "This Nunu changed its profile.": {
+    "zh-CN": "此 Nunu 已更新资料。",
+    "en": "This Nunu changed its profile."
   },
-  "This Nu-nu changed name to \"{name}\".": {
-    "zh-CN": "此 Nu-nu 已更名为“{name}”。",
-    "en": "This Nu-nu changed name to \"{name}\"."
+  "This Nunu changed name to \"{name}\".": {
+    "zh-CN": "此 Nunu 已更名为“{name}”。",
+    "en": "This Nunu changed name to \"{name}\"."
   },
   "Self-update: {text}": {
     "zh-CN": "自身更新：{text}",
@@ -1248,8 +1284,8 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Not connected"
   },
   "Agent actions": {
-    "zh-CN": "Nu-nu 行动",
-    "en": "Nu-nu actions"
+    "zh-CN": "Nunu 行动",
+    "en": "Nunu actions"
   },
   "Setup is ready. Context collection and autonomous actions are not enabled in this version.": {
     "zh-CN": "基座已就绪。本版暂不采集上下文，也不自动执行行动。",
@@ -1267,9 +1303,9 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "zh-CN": "暂时无法更新 proactive mode。",
     "en": "Could not update proactive mode."
   },
-  "Open Nu-nu": {
-    "zh-CN": "打开 Nu-nu",
-    "en": "Open Nu-nu"
+  "Open Nunu": {
+    "zh-CN": "打开 Nunu",
+    "en": "Open Nunu"
   },
   "Open Nuum": {
     "zh-CN": "打开 Nuum",
@@ -1280,7 +1316,7 @@ export const messages: Record<string, Record<"zh-CN" | "en", string>> = {
     "en": "Quit"
   },
   "Manage your proactive companion from the menu bar.": {
-    "zh-CN": "在菜单栏管理主动陪伴你的 Nu-nu。",
+    "zh-CN": "在菜单栏管理主动陪伴你的 Nunu。",
     "en": "Manage your proactive companion from the menu bar."
   },
   "Open menu bar panel": {

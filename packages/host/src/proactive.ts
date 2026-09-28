@@ -71,7 +71,7 @@ export class ProactiveService {
       let record = params.agentId ? this.store.requireAgent(params.agentId) : this.defaultAgent();
       if (!record) {
         if (params.expectedRevision !== 0) throw new Error("Proactive policy revision conflict");
-        record = await this.store.createAgent({ id: crypto.randomUUID(), name: "Nu-nu", description: "", tags: ["proactive"], avatarColor: "purple", createdAt: this.now() }, {
+        record = await this.store.createAgent({ id: crypto.randomUUID(), name: "Nunu", description: "", tags: ["proactive"], avatarColor: "purple", createdAt: this.now() }, {
           model: this.model(), workspace: { projectRoot: null, toolPermission: "ask" },
           proactive: ProactivePolicy.parse({ revision: 0, isDefault: true })
         });

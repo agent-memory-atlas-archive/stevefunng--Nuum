@@ -4,9 +4,9 @@
 
 ## 实体与真源
 
-- 首次开启时创建一个普通持久 Nu-nu 实体，拥有正常的 profile、workspace、memory、transcript。随机 UUID；不靠名称识别。
+- 首次开启时创建一个普通持久 Nunu 实体，拥有正常的 profile、workspace、memory、transcript。随机 UUID；不靠名称识别。
 - `AgentSettings.proactive` 是该成员的唯一策略真源。`isDefault` 只选择本期 UI 默认承载者，不作为能力权限判断条件。
-- 所有 Host 操作按 `agentId` 寻址，省略时解析默认成员；未来对其他 Nu-nu 展示同一配置入口即可，不需要复制执行器或修改主键。
+- 所有 Host 操作按 `agentId` 寻址，省略时解析默认成员；未来对其他 Nunu 展示同一配置入口即可，不需要复制执行器或修改主键。
 - 更新使用 `expectedRevision` 拒绝过期写入。开启、关闭、暂停截止时间与来源白名单重启后保留。运行中的检查及错误状态只存在内存。
 - `proactive-activity.json` 是每成员最多 50 条的状态活动记录，不是聊天时间线，也不是策略来源。它只保存状态和 opaque context refs，不保存上下文正文。
 
@@ -28,7 +28,7 @@
 
 - macOS template 图标：空心表示关闭/暂停，实心表示开启。tooltip 显示状态。
 - 左击打开 368px 控制面板；右击提供面板、打开 Nuum、退出。浮层失焦收起，位置约束在所在显示器内。
-- 面板提供启停、暂停 30 分钟/1 小时、恢复、检查基座、最近活动、打开对应 Nu-nu。
+- 面板提供启停、暂停 30 分钟/1 小时、恢复、检查基座、最近活动、打开对应 Nunu。
 - 主窗口关闭时隐藏，Host 与菜单栏继续运行。Dock 或面板可重新打开主窗口；退出 Nuum 才清理菜单栏、Host、Kernel。
 - 默认关闭；不注册开机启动。语言和主题与设置共用，跨窗口通过 settings.updated 同步。
 
